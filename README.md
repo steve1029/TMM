@@ -1,5 +1,5 @@
 # TMM
-A python script for the Transfer Matrix Method.
+A short python script for the Transfer Matrix Method. I made it early in my Ph.D. course.
 
 ## Installation
 Just download whole package and run `$ python example.py`
@@ -10,6 +10,7 @@ Just download whole package and run `$ python example.py`
     import TMM
     example = TMM.TMM()
     ```
+
 1. Set the range of wavelength.
     ```python
     wl = np.arange(550,750,0.2) * nm
@@ -27,8 +28,10 @@ Just download whole package and run `$ python example.py`
 
 1. Set the material properties of the medium.
     If the medium is consist of 4 layers, put six arguments.
-    The first and last arguments are the medium indice for the incident and transmitted field. If the layers are placed in vacuum or air, the first and
-    last argument should be 1.
+    The first and last arguments are the medium indice for the input(incident) field and output(transmitted) field.
+    If the 4 layers are placed in vacuum or air, the first and last argument should be 1.
+    The thickness of the mediums can be set by `set_mediumthick` method.
+    It also takes 4 arguments because the thickness of the input and output medium is not considered in TMM.
 
     ```python
     example.set_mediumindex(1, 1.2, 1.1, 2.2, 1.4, 1)
