@@ -9,22 +9,21 @@ um = 1.e-6
 # freq = np.arange(400,800) * 1e9
 
 wl = np.arange(550,750,0.2) * nm
-
 example.set_wavelength(wl)
 
 print('default incident angle : ', example.incangle)
 
 brewsterangle = np.arctan(2)
-example.set_incidentangle(angle=0., unit='radian')
+example.set_incidentangle(angle=np.pi/6, unit='radian')
 print('modified incident angle : ', example.incangle)
 # print '%.2e' %example.wavelength
 
-print(example.set_mediumindex(1,2,1,2,1))
-# print example.mediumtype('magnetic',[1,2,3,2,1])
-print(example.set_mediumtype('nonmagnetic'))
-print(example.set_mediumthick(102.4*nm, 153.6*nm, 102.4*nm))
+example.set_mediumindex(1, 1.2, 1.1, 2.2, 1.4, 1)
+#example.set_mediumtype('magnetic',[1,2,3,2,1])
+example.set_mediumtype('nonmagnetic')
+example.set_mediumthick(800*nm, 502.4*nm, 753.6*nm, 402.4*nm)
 
-size = (16,9)
+size = (10,8)
 
 matrixs = example.cal_spol_matrix()
 ms = example.matrixs
