@@ -1,0 +1,12 @@
+Epsr_PML_xx(mm,nn)=Epsr_PML_xx(mm,nn) + 1*(eps_surr*cos2sx/cos2sy)*rect_form;
+Epsr_PML_yy(mm,nn)=Epsr_PML_yy(mm,nn) + 1*(eps_surr/cos2sx*cos2sy)*rect_form;
+Epsr_PML_zz(mm,nn)=Epsr_PML_zz(mm,nn) + 1*(eps_surr/cos2sx/cos2sy)*rect_form;
+Apsr_PML_xx(mm,nn)=Apsr_PML_xx(mm,nn) + 1/(eps_surr*cos2sx/cos2sy)*rect_form;
+Apsr_PML_yy(mm,nn)=Apsr_PML_yy(mm,nn) + 1/(eps_surr/cos2sx*cos2sy)*rect_form;
+Apsr_PML_zz(mm,nn)=Apsr_PML_zz(mm,nn) + 1/(eps_surr/cos2sx/cos2sy)*rect_form;
+Mpsr_PML_xx(mm,nn)=Mpsr_PML_xx(mm,nn) + 1*(muu_surr*cos2sx/cos2sy)*rect_form;
+Mpsr_PML_yy(mm,nn)=Mpsr_PML_yy(mm,nn) + 1*(muu_surr/cos2sx*cos2sy)*rect_form;
+Mpsr_PML_zz(mm,nn)=Mpsr_PML_zz(mm,nn) + 1*(muu_surr/cos2sx/cos2sy)*rect_form;
+Bpsr_PML_xx(mm,nn)=Bpsr_PML_xx(mm,nn) + 1/(muu_surr*cos2sx/cos2sy)*rect_form;
+Bpsr_PML_yy(mm,nn)=Bpsr_PML_yy(mm,nn) + 1/(muu_surr/cos2sx*cos2sy)*rect_form;
+Bpsr_PML_zz(mm,nn)=Bpsr_PML_zz(mm,nn) + 1/(muu_surr/cos2sx/cos2sy)*rect_form;
