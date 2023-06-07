@@ -1,40 +1,11 @@
+# import Pkg; Pkg.add("NPZ")
 using LinearAlgebra
 using Printf
-
-um = 1e-6
-nm = 1e-9
-lambda = 500 * nm
-c = 299792458
-k0 = 2*π / lambda # wavenumber in free space.
-ω = c*k0
-mur = 1
-epsr = 1.3^2
-n = sqrt(mur*epsr)
-μ_0 = 4*π*10^-7
-ε_0 = 8.8541878128e-12
-
-# polar angle and azimuthal angle.
-# θ = π / 12 # radian.
-# ϕ = π / 20 # radian.
-# θ = π / 6
-θ = 0
-ϕ = 0
-# ϕ = π / 6
-
-# wave vector in free space.
-kx0 = k0 * sin(θ) * cos(ϕ)
-ky0 = k0 * sin(θ) * sin(ϕ)
-kz0 = k0 * cos(θ)
-
-# wave vector in a single block.
-kxn = k0 * n * sin(θ) * cos(ϕ)
-kyn = k0 * n * sin(θ) * sin(ϕ)
-
-zm = 300*nm
-zp = 600*nm
-
-@printf("normalized kx in a single block: %.3f\n", kxn/k0)
-@printf("normalized ky in a single block: %.3f\n", kyn/k0)
+using Plots
+gr()
+using Base
+using Distributions
+using NPZ
 
 # Calculate corresponding Ez, Hx, Hy and Hz for the given Ex and Ey.
 function get_Amatrix(kx_bar::Number, ky_bar::Number, mur::Number, epsr::Number)
@@ -77,89 +48,83 @@ function get_Bmatrix(kx_bar::Number, ky_bar::Number, mur::Number, epsr::Number)
    return B
 end
 
+function get_HxHy(k0::Number, kzn::Number, A::AbstractMatrix, input::AbstractVector)
+
+    H11 = (1im .* kzn./k0) .* (inv(A) * input)
+
+    Hy = H11[1]
+    Hx = H11[2]
+
+    return Hx, Hy
+end
+
+function get_Ez(ky_bar, kx_bar, Hy, Hx, epsr)
+    Ez = 1im.*(ky_bar.*Hx .- kx_bar.*Hy) ./ epsr
+    return Ez
+end
+
+function get_Hz(ky_bar, kx_bar, Ey, Ex, mur)
+    Hz = 1im.*(ky_bar.*Ex .- kx_bar.*Ey) ./ mur
+    return Hz
+end
+
 # Eigen vector and eigen value calculation in a single block.
 function single_block_eigen(k0, kxn, kyn, mur, epsr)
 
     kx_bar = kxn / k0
     ky_bar = kyn / k0
 
+    murx = mur
+    mury = mur
+    murz = mur
+
+    epsrx = epsr
+    epsry = epsr
+    epsrz = epsr
+
     A = get_Amatrix(kx_bar, ky_bar, mur, epsr)
     B = get_Bmatrix(kx_bar, ky_bar, mur, epsr)
 
     C = (k0^2) .* (A * B)
 
-    eigvals, ExEy_eigvecs = eigen(C)
+    eigvals, EyEx_eigvecs = eigen(C)
 
-    kz11 = sqrt(-eigvals[1]) # Left-to-right, TE mode.
-    kz12 =-sqrt(-eigvals[1]) # Right-to-left, TE mode.
-    kz21 = sqrt(-eigvals[2]) # Left-to-right, TM mode.
-    kz22 =-sqrt(-eigvals[2]) # Right-to-left, TM mode.
+    kzTEp = sqrt(-eigvals[1]) # Left-to-right, TE mode.
+    kzTEm =-sqrt(-eigvals[1]) # Right-to-left, TE mode.
+    kzTMp = sqrt(-eigvals[2]) # Left-to-right, TM mode.
+    kzTMm =-sqrt(-eigvals[2]) # Right-to-left, TM mode.
 
-    Ey1 = EyEx_eigvecs[1,1] # Left-to-right, TE mode.
-    Ex1 = EyEx_eigvecs[2,1] # Right-to-left, TE mode.
-    Ey2 = EyEx_eigvecs[1,2] # Left-to-right, TM mode.
-    Ex2 = EyEx_eigvecs[2,2] # Right-to-left, TM mode.
+    EyTE = EyEx_eigvecs[1,1] # Ey, TE mode.
+    ExTE = EyEx_eigvecs[2,1] # Ex, TE mode.
+    EyTM = EyEx_eigvecs[1,2] # Ey, TM mode.
+    ExTM = EyEx_eigvecs[2,2] # Ex, TM mode.
 
     # Note that H field (magnetic induction vector) is scaled by 1im * sqrt(ε_0/μ_0) for convenience,
     # i.e., H_hat = 1im * sqrt(ε_0/μ_0) * H_bar, and we are calculating H_hat.
     # Also, the order of the eigenvector is reversed, i.e., H11 = [Hy, Hx], not [Hx, Hy].
-    H11 = (1im * kz11/k0) .* (inv(A) * [Ey1, Ex1])
-    H12 = (1im * kz12/k0) .* (inv(A) * [Ey1, Ex1])
-    H21 = (1im * kz21/k0) .* (inv(A) * [Ey2, Ex2])
-    H22 = (1im * kz22/k0) .* (inv(A) * [Ey2, Ex2])
+    HxTEp, HyTEp = get_HxHy(k0, kzTEp, A, [EyTE, ExTE])
+    HxTEm, HyTEm = get_HxHy(k0, kzTEm, A, [EyTE, ExTE])
+    HxTMp, HyTMp = get_HxHy(k0, kzTMp, A, [EyTM, ExTM])
+    HxTMm, HyTMm = get_HxHy(k0, kzTMm, A, [EyTM, ExTM])
 
-    Hx11 = H11[2]
-    Hx12 = H12[2]
-    Hx21 = H21[2]
-    Hx22 = H22[2]
+    EzTEp = get_Ez(ky_bar, kx_bar, HyTEp, HxTEp, epsrz)
+    EzTEm = get_Ez(ky_bar, kx_bar, HyTEm, HxTEm, epsrz)
+    EzTMp = get_Ez(ky_bar, kx_bar, HyTMp, HxTMp, epsrz)
+    EzTMm = get_Ez(ky_bar, kx_bar, HyTMm, HxTMm, epsrz)
 
-    Hy11 = H11[1]
-    Hy12 = H12[1]
-    Hy21 = H21[1]
-    Hy22 = H22[1]
+    HzTE = get_Hz(ky_bar, kx_bar, EyTE, ExTE, murz)
+    HzTM = get_Hz(ky_bar, kx_bar, EyTM, ExTM, murz)
 
-    Ez11 = 1im*(ky_bar*H11[2] - kx_bar*H11[1]) / epsrz
-    Ez12 = 1im*(ky_bar*H12[2] - kx_bar*H12[1]) / epsrz
-    Ez21 = 1im*(ky_bar*H21[2] - kx_bar*H21[1]) / epsrz
-    Ez22 = 1im*(ky_bar*H22[2] - kx_bar*H22[1]) / epsrz
+    eigenvec1 = [ExTE, EyTE, EzTEp, HxTEp, HyTEp, HzTE] # Left-to-right, TE mode.
+    eigenvec2 = [ExTE, EyTE, EzTEm, HxTEm, HyTEm, HzTE] # Right-to-left, TE mode.
+    eigenvec3 = [ExTM, EyTM, EzTMp, HxTMp, HyTMp, HzTM] # Left-to-right, TM mode.
+    eigenvec4 = [ExTM, EyTM, EzTMm, HxTMm, HyTMm, HzTM] # Right-to-left, TM mode.
 
-    Hz1 = 1im*(ky_bar*Ex1 - kx_bar*Ey1) / murz
-    Hz2 = 1im*(ky_bar*Ex2 - kx_bar*Ey2) / murz
-
-    eigenvec1 = [Ex1, Ey1, Ez11, Hx11, Hy11, Hz1] # Left-to-right, TE mode.
-    eigenvec2 = [Ex1, Ey1, Ez12, Hx12, Hy12, Hz1] # Right-to-left, TE mode.
-    eigenvec3 = [Ex2, Ey2, Ez21, Hx21, Hy21, Hz2] # Left-to-right, TM mode.
-    eigenvec4 = [Ex2, Ey2, Ez22, Hx22, Hy22, Hz2] # Right-to-left, TM mode.
-
-    # x1_str = join(eigenvec1, ", ")
-    # x2_str = join(eigenvec2, ", ")
-    # x3_str = join(eigenvec3, ", ")
-    # x4_str = join(eigenvec4, ", ")
-
-    # @printf("1st: %.2f, [%s]\n", kz11/k0, x1_str)
-    # @printf("2nd: %.2f, [%s]\n", kz12/k0, x2_str)
-    # @printf("3rd: %.2f, [%s]\n", kz21/k0, x3_str)
-    # @printf("4th: %.2f, [%s]\n", kz22/k0, x4_str)
-
-    # println(typeof(eigenvec1))
-
-    _eigvalues = [kz11, kz12, kz21, kz22]
+    _eigvalues = [kzTEp, kzTEm, kzTMp, kzTMm]
     _eigenvecs = hcat(eigenvec1, eigenvec2, eigenvec3, eigenvec4)
 
     return _eigvalues, _eigenvecs
 end
-
-kzns, eigvectors = single_block_eigen(k0, kxn, kyn, mur, epsr)
-
-kz1p = kzns[1]
-kz1m = kzns[2]
-kz2p = kzns[3]
-kz2m = kzns[4]
-
-@printf("normalized kz in a single block: %.3f\n", kz1p/k0)
-@printf("normalized kz in a single block: %.3f\n", kz1m/k0)
-@printf("normalized kz in a single block: %.3f\n", kz2p/k0)
-@printf("normalized kz in a single block: %.3f\n", kz2m/k0)
 
 """
     make_WhVh(ω, kx, ky, kz, eigvecs, z)
@@ -181,7 +146,7 @@ julia>
 
 # Notes
 """
-function make_WhVh(ω::AbstractFloat, kx::AbstractFloat, ky::AbstractFloat, kz::Real)
+function make_WhVh(μ_0, ω::AbstractFloat, kx::AbstractFloat, ky::AbstractFloat, kz::Real)
 
     Wh = I # The most Julianic way of expressing the identity matrix.
     Vh = zeros(ComplexF64, 2, 2)
@@ -316,9 +281,9 @@ function make_WmVm(eigvalues::AbstractVector, eigvecs::AbstractMatrix, z::Real)
     return Wm, Vm
 end
 
-function get_the_left_to_right_operators(ω, kx0, ky0, kz0, eigvalues, eigvectors, zm, zp)
+function get_the_left_to_right_operators(μ_0, ω, kx0, ky0, kz0, eigvalues, eigvectors, zm, zp)
     
-    Wh, Vh = make_WhVh(ω, kx0, ky0, kz0)
+    Wh, Vh = make_WhVh(μ_0, ω, kx0, ky0, kz0)
     Wp0, Vp0 = make_WpVp(eigvalues, eigvectors, 0.)
     Wpp, Vpp = make_WpVp(eigvalues, eigvectors, zp-zm)
     Wm0, Vm0 = make_WmVm(eigvalues, eigvectors, 0)
@@ -350,9 +315,9 @@ function get_the_left_to_right_operators(ω, kx0, ky0, kz0, eigvalues, eigvector
     return cap, cam, R, T
 end
 
-function get_the_right_to_left_operators(ω, kx0, ky0, kz0, eigvalues, eigvectors, zm, zp)
+function get_the_right_to_left_operators(μ_0, ω, kx0, ky0, kz0, eigvalues, eigvectors, zm, zp)
     
-    Wh, Vh = make_WhVh(ω, kx0, ky0, kz0)
+    Wh, Vh = make_WhVh(μ_0, ω, kx0, ky0, kz0)
     Wp0, Vp0 = make_WpVp(eigvalues, eigvectors, 0.)
     Wpp, Vpp = make_WpVp(eigvalues, eigvectors, zp-zm)
     Wm0, Vm0 = make_WmVm(eigvalues, eigvectors, 0)
@@ -384,16 +349,6 @@ function get_the_right_to_left_operators(ω, kx0, ky0, kz0, eigvalues, eigvector
     return cbp, cbm, R, T
 end
 
-cap, cam, R1, T1 = get_the_left_to_right_operators(ω, kx0, ky0, kz0, kzns, eigvectors, zm, zp)
-cbp, cbm, R2, T2 = get_the_right_to_left_operators(ω, kx0, ky0, kz0, kzns, eigvectors, zm, zp)
-
-S = zeros(ComplexF64, 4, 4)
-
-S[1:2, 1:2] = T1
-S[3:4, 1:2] = R1
-S[1:2, 3:4] = R2
-S[3:4, 3:4] = T2
-
 """
     plot_left_to_right_field(input::Tuple{Union{Float64, Int}, Union{Float64, Int}},
     R1::Array{Float64, 2} where size(R1) == (2,2), T1::Array{Float64, 2} where size(R1) == (2,2))
@@ -405,10 +360,25 @@ Plot the field profile.
 # Examples
 # Notes
 """
-function plot_left_to_right_field(ω, μ_0, kx0, ky0, kz0, zm, zp, kzns,
-    input::AbstractVector, eigvectors::AbstractVector,
-    cap::AbstractMatrix, cam::AbstractMatrix,
-    R1::AbstractMatrix{Float64}, T1::AbstractMatrix)
+function get_left_to_right_field(λ, θ, ϕ, mur, epsr, zm, zp, input::AbstractVector)
+
+    c = 299792458 # m/s.
+    k0 = 2*π / λ # wavenumber in free space.
+    ω = c*k0
+    n = sqrt(mur*epsr)
+    μ_0 = 4*π*10^-7
+    ε_0 = 8.8541878128e-12
+
+    # wave vector in free space.
+    kx0 = k0 * sin(θ) * cos(ϕ)
+    ky0 = k0 * sin(θ) * sin(ϕ)
+    kz0 = k0 * cos(θ)
+
+    # wave vector in a single block.
+    kxn = k0 * n * sin(θ) * cos(ϕ)
+    kyn = k0 * n * sin(θ) * sin(ϕ)
+
+    kzns, eigvectors = single_block_eigen(k0, kxn, kyn, mur, epsr)
 
     kzTEp = kzns[1]
     kzTEm = kzns[2]
@@ -420,54 +390,288 @@ function plot_left_to_right_field(ω, μ_0, kx0, ky0, kz0, zm, zp, kzns,
     eigTMp = eigvectors[:,3]
     eigTMm = eigvectors[:,4]
 
-    Eiy = input[1]
-    Eix = input[2]
+    @show eigTEp
+    @show eigTEm
+    @show eigTMp
+    @show eigTMm
+
+    # @printf("normalized kx in a single block: %.3f\n", kxn/k0)
+    # @printf("normalized ky in a single block: %.3f\n", kyn/k0)
+    @printf("normalized kz of TEp in a single block: %.3f\n", kzTEp/k0)
+    @printf("normalized kz of TEm in a single block: %.3f\n", kzTEm/k0)
+    @printf("normalized kz of TMp in a single block: %.3f\n", kzTMp/k0)
+    @printf("normalized kz of TMm in a single block: %.3f\n", kzTMm/k0)
+
+    cap, cam, R1, T1 = get_the_left_to_right_operators(μ_0, ω, kx0, ky0, kz0, kzns, eigvectors, zm, zp)
+    cbp, cbm, R2, T2 = get_the_right_to_left_operators(μ_0, ω, kx0, ky0, kz0, kzns, eigvectors, zm, zp)
+
+    # @show cap
+    # @show cam
+    # @show R1
+    # @show T1
+
+    Eix = input[1]
+    Eiy = input[2]
     Eiz =-(kx0*Eix + ky0*Eiy) / kz0
+    Hix = (ky0*Eiz - kz0*Eiy) / ω / μ_0 # Not H_bar field.
     Hiy = (kz0*Eix - kx0*Eiz) / ω / μ_0
-    Hix = (ky0*Eiz - kz0*Eiy) / ω / μ_0
     Hiz = (ky0*Eix - kx0*Eiy) / ω / μ_0
 
-    Ery = R1[1,:] * input
-    Erx = R1[2,:] * input
+    Erx = dot(R1[2,:], [Eiy, Eix])
+    Ery = dot(R1[1,:], [Eiy, Eix])
     Erz = (kx0*Erx + ky0*Ery) / kz0
-    Hry =-(kz0*Erx + kx0*Erz) / ω / μ_0
     Hrx = (ky0*Erz + kz0*Ery) / ω / μ_0
+    Hry =-(kz0*Erx + kx0*Erz) / ω / μ_0
     Hrz = (ky0*Erx - kx0*Ery) / ω / μ_0
 
-    Ety = T1[1,:] * input
-    Etx = T1[2,:] * input
+    Etx = dot(T1[2,:], [Eiy, Eix])
+    Ety = dot(T1[1,:], [Eiy, Eix])
     Etz =-(kx0*Etx + ky0*Ety) / kz0
-    Hty = (kz0*Etx - kx0*Etz) / ω / μ_0
     Htx = (ky0*Etz - kz0*Ety) / ω / μ_0
+    Hty = (kz0*Etx - kx0*Etz) / ω / μ_0
     Htz = (ky0*Etx - kx0*Ety) / ω / μ_0
 
-    capp = cap * input # The coupling coefficient for left-to-right, {TE mode, TM mode}.
-    camm = cam * input # The coupling coefficient for right-to-left, {TE mode, TM mode}.
+    caTEp = cap[1,:]' * [Eiy, Eix] # The coupling coefficient for left-to-right, TE mode.
+    caTMp = cap[2,:]' * [Eiy, Eix] # The coupling coefficient for left-to-right, TM mode.
+    caTEm = cam[1,:]' * [Eiy, Eix] # The coupling coefficient for right-to-left, TE mode.
+    caTMm = cam[2,:]' * [Eiy, Eix] # The coupling coefficient for right-to-left, TM mode.
 
-    x = 0:1*nm:1500*nm
-    z = 0:1*nm:1500*nm
+    coeff = [caTEp, caTEm, caTMp, caTMm]
+    # @show caTEp
+    # @show caTMp
+    # @show caTEm
+    # @show caTMm
+
+    # x = 1000*nm:-10*nm:0 # UnitRange object.
+    x = 0:10*nm:1000*nm # UnitRange object.
+    z = 0:10*nm:1500*nm # UnitRange object.
+    # x = range(1500, step=-500, stop=0)   # StepRange object.
+    # z = range(0, step=500, stop=1500)       # StepRange object.
     y = 0
 
-    Z, X = ndgrid(z, x, indexing=:xy)
-    field = zero(Z)
+    # X = repeat(x, 1, length(z))
+    # Z = repeat(z, length(x), 1)
+
+    # exit(0)
+
+    leftregion = (z .< zm)
+    middleregion = (zm .<= z .< zp)
+    rightregion = (zp .<= z)
+
+    # println(x[61])
+    # println(middleregion)
+    # println(rightregion)
+
+    Ex = zeros(ComplexF64, length(x), length(z))
+    Ey = zeros(ComplexF64, length(x), length(z))
+    Ez = zeros(ComplexF64, length(x), length(z))
+    Hx = zeros(ComplexF64, length(x), length(z))
+    Hy = zeros(ComplexF64, length(x), length(z))
+    Hz = zeros(ComplexF64, length(x), length(z))
+
+    Ex_inc = zeros(ComplexF64, length(x), length(z))
+    Ey_inc = zeros(ComplexF64, length(x), length(z))
+    Ez_inc = zeros(ComplexF64, length(x), length(z))
+    Hx_inc = zeros(ComplexF64, length(x), length(z))
+    Hy_inc = zeros(ComplexF64, length(x), length(z))
+    Hz_inc = zeros(ComplexF64, length(x), length(z))
+
+    Ex_ref = zeros(ComplexF64, length(x), length(z))
+    Ey_ref = zeros(ComplexF64, length(x), length(z))
+    Ez_ref = zeros(ComplexF64, length(x), length(z))
+    Hx_ref = zeros(ComplexF64, length(x), length(z))
+    Hy_ref = zeros(ComplexF64, length(x), length(z))
+    Hz_ref = zeros(ComplexF64, length(x), length(z))
+
+    Ex_trs = zeros(ComplexF64, length(x), length(z))
+    Ey_trs = zeros(ComplexF64, length(x), length(z))
+    Ez_trs = zeros(ComplexF64, length(x), length(z))
+    Hx_trs = zeros(ComplexF64, length(x), length(z))
+    Hy_trs = zeros(ComplexF64, length(x), length(z))
+    Hz_trs = zeros(ComplexF64, length(x), length(z))
 
     # For z < z-
-    phase_inc = (kx0 .* X) .+ (ky0 * y) + (kz0 .* (Z[Z .< zm] .- zm))
-    phase_ref = (kx0 .* X) .+ (ky0 * y) - (kz0 .* (Z[Z .< zm] .- zm))
-    leftfield = ([Eix, Eiy, Eiz, Hix, Hiy, Hiz] .* exp(1im .* phase_inc)) + 
-                ([Erx, Ery, Erz, Hrx, Hry, Hrz] .* exp(1im .* phase_ref))
+    phase_inc = ((kx0.*x) .+ (ky0.*y) .+ (kz0.*(z' .- zm)))[:,leftregion]
+    phase_ref = ((kx0.*x) .+ (ky0.*y) .- (kz0.*(z' .- zm)))[:,leftregion]
+
+    Ex_ref[:,leftregion] = (Erx .* exp.(1im .* phase_ref))
+    Ey_ref[:,leftregion] = (Ery .* exp.(1im .* phase_ref))
+    Ez_ref[:,leftregion] = (Erz .* exp.(1im .* phase_ref))
+    Hx_ref[:,leftregion] = (Hrx .* exp.(1im .* phase_ref))
+    Hy_ref[:,leftregion] = (Hry .* exp.(1im .* phase_ref))
+    Hz_ref[:,leftregion] = (Hrz .* exp.(1im .* phase_ref))
+
+    Ex_inc[:,leftregion] = (Eix .* exp.(1im .* phase_inc))
+    Ey_inc[:,leftregion] = (Eiy .* exp.(1im .* phase_inc))
+    Ez_inc[:,leftregion] = (Eiz .* exp.(1im .* phase_inc))
+    Hx_inc[:,leftregion] = (Hix .* exp.(1im .* phase_inc))
+    Hy_inc[:,leftregion] = (Hiy .* exp.(1im .* phase_inc))
+    Hz_inc[:,leftregion] = (Hiz .* exp.(1im .* phase_inc))
+
+    Ex = Ex_inc + Ex_ref
+    Ey = Ey_inc + Ey_ref
+    Ez = Ez_inc + Ez_ref
+    Hx = Hx_inc + Hx_ref
+    Hy = Hy_inc + Hy_ref
+    Hz = Hz_inc + Hz_ref
 
     # For z- <= z < z+
-    phase_TEp = (kxn .* X) .+ (kyn * y) + (kzTEp .* (Z[(Z .=> zm) & (Z .< zp)] .- zm))
-    phase_TMp = (kxn .* X) .+ (kyn * y) + (kzTMp .* (Z .- zm))
-    phase_TEm = (kxn .* X) .+ (kyn * y) + (kzTEm .* (Z .- zp))
-    phase_TMm = (kxn .* X) .+ (kyn * y) + (kzTMm .* (Z .- zp))
-    middlefield = (capp[1] .* (eigTEp .* phase_TEp)) + (camm[1] .* (eigTEm .* phase_TEm)) +
-                  (capp[2] .* (eigTMp .* phase_TMp)) + (camm[2] .* (eigTMm .* phase_TMm))
-
+    phase_TEp = ((kxn.*x) .+ (kyn.*y) .+ (kzTEp.*(z' .- zm)))[:,middleregion]
+    phase_TMp = ((kxn.*x) .+ (kyn.*y) .+ (kzTMp.*(z' .- zm)))[:,middleregion]
+    phase_TEm = ((kxn.*x) .+ (kyn.*y) .+ (kzTEm.*(z' .- zp)))[:,middleregion]
+    phase_TMm = ((kxn.*x) .+ (kyn.*y) .+ (kzTMm.*(z' .- zp)))[:,middleregion]
+    Ex[:,middleregion] = (caTEp .* (eigTEp[1] .* exp.(1im .* phase_TEp))) .+ 
+                         (caTEm .* (eigTEm[1] .* exp.(1im .* phase_TEm))) .+
+                         (caTMp .* (eigTMp[1] .* exp.(1im .* phase_TMp))) .+ 
+                         (caTMm .* (eigTMm[1] .* exp.(1im .* phase_TMm)))
+    Ey[:,middleregion] = (caTEp .* (eigTEp[2] .* exp.(1im .* phase_TEp))) .+ 
+                         (caTEm .* (eigTEm[2] .* exp.(1im .* phase_TEm))) .+
+                         (caTMp .* (eigTMp[2] .* exp.(1im .* phase_TMp))) .+ 
+                         (caTMm .* (eigTMm[2] .* exp.(1im .* phase_TMm)))
+    Ez[:,middleregion] = (caTEp .* (eigTEp[3] .* exp.(1im .* phase_TEp))) .+ 
+                         (caTEm .* (eigTEm[3] .* exp.(1im .* phase_TEm))) .+
+                         (caTMp .* (eigTMp[3] .* exp.(1im .* phase_TMp))) .+ 
+                         (caTMm .* (eigTMm[3] .* exp.(1im .* phase_TMm)))
+    Hx[:,middleregion] = (caTEp .* (eigTEp[4] .* exp.(1im .* phase_TEp))) .+ 
+                         (caTEm .* (eigTEm[4] .* exp.(1im .* phase_TEm))) .+
+                         (caTMp .* (eigTMp[4] .* exp.(1im .* phase_TMp))) .+ 
+                         (caTMm .* (eigTMm[4] .* exp.(1im .* phase_TMm)))
+    Hy[:,middleregion] = (caTEp .* (eigTEp[5] .* exp.(1im .* phase_TEp))) .+ 
+                         (caTEm .* (eigTEm[5] .* exp.(1im .* phase_TEm))) .+
+                         (caTMp .* (eigTMp[5] .* exp.(1im .* phase_TMp))) .+ 
+                         (caTMm .* (eigTMm[5] .* exp.(1im .* phase_TMm)))
+    Hz[:,middleregion] = (caTEp .* (eigTEp[6] .* exp.(1im .* phase_TEp))) .+ 
+                         (caTEm .* (eigTEm[6] .* exp.(1im .* phase_TEm))) .+
+                         (caTMp .* (eigTMp[6] .* exp.(1im .* phase_TMp))) .+ 
+                         (caTMm .* (eigTMm[6] .* exp.(1im .* phase_TMm)))
+    
     # For z+ <= z
-    phase_trs = (kx0 .* X) .+ (ky0 * y) + (kz0 .* (Z .- zp))
-    rightfield = ([Etx, Ety, Etz, Htx, Hty, Htz] .* exp(1im .* phase_trs))
+    phase_trs = ((kx0.*x) .+ (ky0.*y) .+ (kz0.*(z' .- zp)))[:,rightregion]
+    Ex_trs[:,rightregion] = (Etx .* exp.(1im .* phase_trs))
+    Ey_trs[:,rightregion] = (Ety .* exp.(1im .* phase_trs))
+    Ez_trs[:,rightregion] = (Etz .* exp.(1im .* phase_trs))
+    Hx_trs[:,rightregion] = (Htx .* exp.(1im .* phase_trs))
+    Hy_trs[:,rightregion] = (Hty .* exp.(1im .* phase_trs))
+    Hz_trs[:,rightregion] = (Htz .* exp.(1im .* phase_trs))
+    Ex[:,rightregion] = Ex_trs[:,rightregion]
+    Ey[:,rightregion] = Ey_trs[:,rightregion]
+    Ez[:,rightregion] = Ez_trs[:,rightregion]
+    Hx[:,rightregion] = Hx_trs[:,rightregion]
+    Hy[:,rightregion] = Hy_trs[:,rightregion]
+    Hz[:,rightregion] = Hz_trs[:,rightregion]
 
-    return
+    # println(size(phase_inc))
+    # println(size(phase_ref))
+    # println(size(phase_TEp))
+    # println(size(phase_trs))
+
+    impedance = sqrt(μ_0 /ε_0)
+    Hx = Hx .* 1im ./ impedance
+    Hy = Hy .* 1im ./ impedance
+    Hz = Hz .* 1im ./ impedance
+
+    incfields = cat(real(Ex_inc), real(Hx_inc), real(Ey_inc), real(Hy_inc), real(Ez_inc), real(Hz_inc), dims=3)
+    reffields = cat(real(Ex_ref), real(Hx_ref), real(Ey_ref), real(Hy_ref), real(Ez_ref), real(Hz_ref), dims=3)
+    trsfields = cat(real(Ex_trs), real(Hx_trs), real(Ey_trs), real(Hy_trs), real(Ez_trs), real(Hz_trs), dims=3)
+    totfields = cat(real(Ex), real(Hx), real(Ey), real(Hy), real(Ez), real(Hz), dims=3)
+
+    title=["Ex", "Hx", "Ey", "Hy", "Ez", "Hz"]
+    cmins = []
+    cmaxs = []
+
+    ps_inc = []
+    ps_ref = []
+    ps_trs = []
+    ps_tot = []
+    l = @layout([a d; b e; c f;])
+
+    for (i, slice) in enumerate(eachslice(incfields, dims=3))
+        name = title[i]*"_inc"
+        cmax = maximum(abs, slice)
+        if isapprox(cmax, 0; atol=1e-10)
+            p = heatmap(slice, title=name, c=:bwr, clims=(-1,1))
+        else
+            p = heatmap(slice, title=name, c=:bwr, clims=(-cmax, cmax))
+        end
+        push!(ps_inc, p)
+        filename = name * ".png"
+        savefig(filename)
+    end
+    plot(ps_inc..., layout=l, plot_title="inc", size=(1200, 1000))
+    savefig("inc.png")
+    
+    for (i, slice) in enumerate(eachslice(reffields, dims=3))
+        name = title[i]*"_ref"
+        cmax = maximum(abs, slice)
+        if isapprox(cmax, 0; atol=1e-10)
+            p = heatmap(slice, title=name, c=:bwr, clims=(-1,1))
+        else
+            p = heatmap(slice, title=name, c=:bwr, clims=(-cmax, cmax))
+        end
+        push!(ps_ref, p)
+        filename = name * ".png"
+        savefig(filename)
+    end
+    plot(ps_ref..., layout=l, plot_title="ref", size=(1200, 1000))
+    savefig("ref.png")
+
+    for (i, slice) in enumerate(eachslice(trsfields, dims=3))
+        name = title[i]*"_trs"
+        cmax = maximum(abs, slice)
+        if isapprox(cmax, 0; atol=1e-10)
+            p = heatmap(slice, title=name, c=:bwr, clims=(-1,1))
+        else
+            p = heatmap(slice, title=name, c=:bwr, clims=(-cmax, cmax))
+        end
+        push!(ps_trs, p)
+        cmax = maximum(abs, slice)
+        push!(cmaxs, cmax)
+        filename = name * ".png"
+        savefig(filename)
+    end
+    plot(ps_trs..., layout=l, plot_title="trs", size=(1200, 1000))
+    savefig("trs.png")
+
+    for (i, slice) in enumerate(eachslice(totfields, dims=3))
+        name = title[i]*"_tot"
+        if isapprox(cmaxs[i], 0; atol=1e-10)
+            p = heatmap(slice, title=name, c=:bwr, clims=(-1,1))
+        else
+            println(cmaxs[i])
+            p = heatmap(slice, title=name, c=:bwr, clims=(-cmaxs[i], cmaxs[i]))
+        end
+        push!(ps_tot, p)
+        filename = name * ".png"
+        savefig(filename)
+    end
+    plot(ps_tot..., layout=l, plot_title="tot", size=(1200, 1000))
+    savefig("tot.png")
+    # plot(ps..., layout=l, plot_title="trs", size=(1200, 1000), yformatter=:scientific)
+    return Ex, Ey, Ez, Hx, Hy, Hz, eigvectors, coeff
 end
+
+um = 1e-6
+nm = 1e-9
+λ = 300 * nm
+mur = 1
+epsr = 2.0^2
+# polar angle and azimuthal angle.
+# θ = π / 12 # radian.
+# ϕ = π / 20 # radian.
+θ = -π / 6
+# θ = 0
+ϕ = 0
+# ϕ = π / 6
+
+zm =  600*nm
+zp = 1000*nm
+
+S = zeros(ComplexF64, 4, 4)
+
+# S[1:2, 1:2] = T1
+# S[3:4, 1:2] = R1
+# S[1:2, 3:4] = R2
+# S[3:4, 3:4] = T2
+
+input = [0., 1.] # [Eix, Eiy]
+Ex, Ey, Ez, Hx, Hy, Hz, eigvectors, coeff = get_left_to_right_field(λ, θ, ϕ, mur, epsr, zm, zp, input)
