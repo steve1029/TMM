@@ -1,8 +1,14 @@
 # import Pkg; Pkg.add("NPZ")
+# import Pkg; Pkg.add("PythonPlot") # Due to the SSL certificate issue, it cannot be used in LG INNOTEK.
+# import Pkg; Pkg.add("PlotlyJS"); Pkg.add("PlotlyBase")
+# import Pkg; Pkg.add("UnicodePlots")
 using LinearAlgebra
 using Printf
 using Plots
-gr()
+# gr()
+# pythonplot()
+# plotlyjs()
+# unicodeplots()
 using Base
 using Distributions
 using NPZ
@@ -360,7 +366,7 @@ Plot the field profile.
 # Examples
 # Notes
 """
-function get_left_to_right_field(λ, θ, ϕ, mur, epsr, zm, zp, input::AbstractVector)
+function get_left_to_right_field(dx, dz, Lx, Lz, λ, θ, ϕ, mur, epsr, zm, zp, input::AbstractVector)
 
     c = 299792458 # m/s.
     k0 = 2*π / λ # wavenumber in free space.
@@ -368,6 +374,7 @@ function get_left_to_right_field(λ, θ, ϕ, mur, epsr, zm, zp, input::AbstractV
     n = sqrt(mur*epsr)
     μ_0 = 4*π*10^-7
     ε_0 = 8.8541878128e-12
+    impedance = sqrt(μ_0 /ε_0)
 
     # wave vector in free space.
     kx0 = k0 * sin(θ) * cos(ϕ)
@@ -443,8 +450,8 @@ function get_left_to_right_field(λ, θ, ϕ, mur, epsr, zm, zp, input::AbstractV
     # @show caTMm
 
     # x = 1000*nm:-10*nm:0 # UnitRange object.
-    x = 0:10*nm:1000*nm # UnitRange object.
-    z = 0:10*nm:1500*nm # UnitRange object.
+    x = 0:dx:Lx # UnitRange object.
+    z = 0:dz:Lz # UnitRange object.
     # x = range(1500, step=-500, stop=0)   # StepRange object.
     # z = range(0, step=500, stop=1500)       # StepRange object.
     y = 0
@@ -462,12 +469,12 @@ function get_left_to_right_field(λ, θ, ϕ, mur, epsr, zm, zp, input::AbstractV
     # println(middleregion)
     # println(rightregion)
 
-    Ex = zeros(ComplexF64, length(x), length(z))
-    Ey = zeros(ComplexF64, length(x), length(z))
-    Ez = zeros(ComplexF64, length(x), length(z))
-    Hx = zeros(ComplexF64, length(x), length(z))
-    Hy = zeros(ComplexF64, length(x), length(z))
-    Hz = zeros(ComplexF64, length(x), length(z))
+    Ex_tot = zeros(ComplexF64, length(x), length(z))
+    Ey_tot = zeros(ComplexF64, length(x), length(z))
+    Ez_tot = zeros(ComplexF64, length(x), length(z))
+    Hx_tot = zeros(ComplexF64, length(x), length(z))
+    Hy_tot = zeros(ComplexF64, length(x), length(z))
+    Hz_tot = zeros(ComplexF64, length(x), length(z))
 
     Ex_inc = zeros(ComplexF64, length(x), length(z))
     Ey_inc = zeros(ComplexF64, length(x), length(z))
@@ -490,6 +497,34 @@ function get_left_to_right_field(λ, θ, ϕ, mur, epsr, zm, zp, input::AbstractV
     Hy_trs = zeros(ComplexF64, length(x), length(z))
     Hz_trs = zeros(ComplexF64, length(x), length(z))
 
+    Ex_TEp = zeros(ComplexF64, length(x), length(z))
+    Ey_TEp = zeros(ComplexF64, length(x), length(z))
+    Ez_TEp = zeros(ComplexF64, length(x), length(z))
+    Hx_TEp = zeros(ComplexF64, length(x), length(z))
+    Hy_TEp = zeros(ComplexF64, length(x), length(z))
+    Hz_TEp = zeros(ComplexF64, length(x), length(z))
+
+    Ex_TMp = zeros(ComplexF64, length(x), length(z))
+    Ey_TMp = zeros(ComplexF64, length(x), length(z))
+    Ez_TMp = zeros(ComplexF64, length(x), length(z))
+    Hx_TMp = zeros(ComplexF64, length(x), length(z))
+    Hy_TMp = zeros(ComplexF64, length(x), length(z))
+    Hz_TMp = zeros(ComplexF64, length(x), length(z))
+
+    Ex_TEm = zeros(ComplexF64, length(x), length(z))
+    Ey_TEm = zeros(ComplexF64, length(x), length(z))
+    Ez_TEm = zeros(ComplexF64, length(x), length(z))
+    Hx_TEm = zeros(ComplexF64, length(x), length(z))
+    Hy_TEm = zeros(ComplexF64, length(x), length(z))
+    Hz_TEm = zeros(ComplexF64, length(x), length(z))
+
+    Ex_TMm = zeros(ComplexF64, length(x), length(z))
+    Ey_TMm = zeros(ComplexF64, length(x), length(z))
+    Ez_TMm = zeros(ComplexF64, length(x), length(z))
+    Hx_TMm = zeros(ComplexF64, length(x), length(z))
+    Hy_TMm = zeros(ComplexF64, length(x), length(z))
+    Hz_TMm = zeros(ComplexF64, length(x), length(z))
+
     # For z < z-
     phase_inc = ((kx0.*x) .+ (ky0.*y) .+ (kz0.*(z' .- zm)))[:,leftregion]
     phase_ref = ((kx0.*x) .+ (ky0.*y) .- (kz0.*(z' .- zm)))[:,leftregion]
@@ -508,72 +543,88 @@ function get_left_to_right_field(λ, θ, ϕ, mur, epsr, zm, zp, input::AbstractV
     Hy_inc[:,leftregion] = (Hiy .* exp.(1im .* phase_inc))
     Hz_inc[:,leftregion] = (Hiz .* exp.(1im .* phase_inc))
 
-    Ex = Ex_inc + Ex_ref
-    Ey = Ey_inc + Ey_ref
-    Ez = Ez_inc + Ez_ref
-    Hx = Hx_inc + Hx_ref
-    Hy = Hy_inc + Hy_ref
-    Hz = Hz_inc + Hz_ref
-
     # For z- <= z < z+
     phase_TEp = ((kxn.*x) .+ (kyn.*y) .+ (kzTEp.*(z' .- zm)))[:,middleregion]
     phase_TMp = ((kxn.*x) .+ (kyn.*y) .+ (kzTMp.*(z' .- zm)))[:,middleregion]
     phase_TEm = ((kxn.*x) .+ (kyn.*y) .+ (kzTEm.*(z' .- zp)))[:,middleregion]
     phase_TMm = ((kxn.*x) .+ (kyn.*y) .+ (kzTMm.*(z' .- zp)))[:,middleregion]
-    Ex[:,middleregion] = (caTEp .* (eigTEp[1] .* exp.(1im .* phase_TEp))) .+ 
-                         (caTEm .* (eigTEm[1] .* exp.(1im .* phase_TEm))) .+
-                         (caTMp .* (eigTMp[1] .* exp.(1im .* phase_TMp))) .+ 
-                         (caTMm .* (eigTMm[1] .* exp.(1im .* phase_TMm)))
-    Ey[:,middleregion] = (caTEp .* (eigTEp[2] .* exp.(1im .* phase_TEp))) .+ 
-                         (caTEm .* (eigTEm[2] .* exp.(1im .* phase_TEm))) .+
-                         (caTMp .* (eigTMp[2] .* exp.(1im .* phase_TMp))) .+ 
-                         (caTMm .* (eigTMm[2] .* exp.(1im .* phase_TMm)))
-    Ez[:,middleregion] = (caTEp .* (eigTEp[3] .* exp.(1im .* phase_TEp))) .+ 
-                         (caTEm .* (eigTEm[3] .* exp.(1im .* phase_TEm))) .+
-                         (caTMp .* (eigTMp[3] .* exp.(1im .* phase_TMp))) .+ 
-                         (caTMm .* (eigTMm[3] .* exp.(1im .* phase_TMm)))
-    Hx[:,middleregion] = (caTEp .* (eigTEp[4] .* exp.(1im .* phase_TEp))) .+ 
-                         (caTEm .* (eigTEm[4] .* exp.(1im .* phase_TEm))) .+
-                         (caTMp .* (eigTMp[4] .* exp.(1im .* phase_TMp))) .+ 
-                         (caTMm .* (eigTMm[4] .* exp.(1im .* phase_TMm)))
-    Hy[:,middleregion] = (caTEp .* (eigTEp[5] .* exp.(1im .* phase_TEp))) .+ 
-                         (caTEm .* (eigTEm[5] .* exp.(1im .* phase_TEm))) .+
-                         (caTMp .* (eigTMp[5] .* exp.(1im .* phase_TMp))) .+ 
-                         (caTMm .* (eigTMm[5] .* exp.(1im .* phase_TMm)))
-    Hz[:,middleregion] = (caTEp .* (eigTEp[6] .* exp.(1im .* phase_TEp))) .+ 
-                         (caTEm .* (eigTEm[6] .* exp.(1im .* phase_TEm))) .+
-                         (caTMp .* (eigTMp[6] .* exp.(1im .* phase_TMp))) .+ 
-                         (caTMm .* (eigTMm[6] .* exp.(1im .* phase_TMm)))
-    
+
+    Ex_TEp[:,middleregion] = (caTEp .* (eigTEp[1] .* exp.(1im .* phase_TEp)))
+    Ex_TEm[:,middleregion] = (caTEm .* (eigTEm[1] .* exp.(1im .* phase_TEm)))
+    Ex_TMp[:,middleregion] = (caTMp .* (eigTMp[1] .* exp.(1im .* phase_TMp)))
+    Ex_TMm[:,middleregion] = (caTMm .* (eigTMm[1] .* exp.(1im .* phase_TMm)))
+
+    Ey_TEp[:,middleregion] = (caTEp .* (eigTEp[2] .* exp.(1im .* phase_TEp)))
+    Ey_TEm[:,middleregion] = (caTEm .* (eigTEm[2] .* exp.(1im .* phase_TEm)))
+    Ey_TMp[:,middleregion] = (caTMp .* (eigTMp[2] .* exp.(1im .* phase_TMp)))
+    Ey_TMm[:,middleregion] = (caTMm .* (eigTMm[2] .* exp.(1im .* phase_TMm)))
+
+    Ez_TEp[:,middleregion] = (caTEp .* (eigTEp[3] .* exp.(1im .* phase_TEp)))
+    Ez_TEm[:,middleregion] = (caTEm .* (eigTEm[3] .* exp.(1im .* phase_TEm)))
+    Ez_TMp[:,middleregion] = (caTMp .* (eigTMp[3] .* exp.(1im .* phase_TMp)))
+    Ez_TMm[:,middleregion] = (caTMm .* (eigTMm[3] .* exp.(1im .* phase_TMm)))
+
+    Hx_TEp[:,middleregion] = (caTEp .* (eigTEp[4] .* exp.(1im .* phase_TEp)))
+    Hx_TEm[:,middleregion] = (caTEm .* (eigTEm[4] .* exp.(1im .* phase_TEm)))
+    Hx_TMp[:,middleregion] = (caTMp .* (eigTMp[4] .* exp.(1im .* phase_TMp)))
+    Hx_TMm[:,middleregion] = (caTMm .* (eigTMm[4] .* exp.(1im .* phase_TMm)))
+
+    Hy_TEp[:,middleregion] = (caTEp .* (eigTEp[5] .* exp.(1im .* phase_TEp)))
+    Hy_TEm[:,middleregion] = (caTEm .* (eigTEm[5] .* exp.(1im .* phase_TEm)))
+    Hy_TMp[:,middleregion] = (caTMp .* (eigTMp[5] .* exp.(1im .* phase_TMp)))
+    Hy_TMm[:,middleregion] = (caTMm .* (eigTMm[5] .* exp.(1im .* phase_TMm)))
+
+    Hz_TEp[:,middleregion] = (caTEp .* (eigTEp[6] .* exp.(1im .* phase_TEp)))
+    Hz_TEm[:,middleregion] = (caTEm .* (eigTEm[6] .* exp.(1im .* phase_TEm)))
+    Hz_TMp[:,middleregion] = (caTMp .* (eigTMp[6] .* exp.(1im .* phase_TMp)))
+    Hz_TMm[:,middleregion] = (caTMm .* (eigTMm[6] .* exp.(1im .* phase_TMm)))
+
     # For z+ <= z
     phase_trs = ((kx0.*x) .+ (ky0.*y) .+ (kz0.*(z' .- zp)))[:,rightregion]
+
     Ex_trs[:,rightregion] = (Etx .* exp.(1im .* phase_trs))
     Ey_trs[:,rightregion] = (Ety .* exp.(1im .* phase_trs))
     Ez_trs[:,rightregion] = (Etz .* exp.(1im .* phase_trs))
     Hx_trs[:,rightregion] = (Htx .* exp.(1im .* phase_trs))
     Hy_trs[:,rightregion] = (Hty .* exp.(1im .* phase_trs))
     Hz_trs[:,rightregion] = (Htz .* exp.(1im .* phase_trs))
-    Ex[:,rightregion] = Ex_trs[:,rightregion]
-    Ey[:,rightregion] = Ey_trs[:,rightregion]
-    Ez[:,rightregion] = Ez_trs[:,rightregion]
-    Hx[:,rightregion] = Hx_trs[:,rightregion]
-    Hy[:,rightregion] = Hy_trs[:,rightregion]
-    Hz[:,rightregion] = Hz_trs[:,rightregion]
 
-    # println(size(phase_inc))
-    # println(size(phase_ref))
-    # println(size(phase_TEp))
-    # println(size(phase_trs))
+    # Add specific fields.
+    Ex_inc += Ex_TEp + Ex_TMp + Ex_trs
+    Ey_inc += Ey_TEp + Ey_TMp + Ey_trs
+    Ez_inc += Ez_TEp + Ez_TMp + Ez_trs
+    Hx_inc += Hx_TEp + Hx_TMp + Hx_trs
+    Hy_inc += Hy_TEp + Hy_TMp + Hy_trs
+    Hz_inc += Hz_TEp + Hz_TMp + Hz_trs
 
-    impedance = sqrt(μ_0 /ε_0)
-    Hx = Hx .* 1im ./ impedance
-    Hy = Hy .* 1im ./ impedance
-    Hz = Hz .* 1im ./ impedance
+    Ex_ref += Ex_TEm + Ex_TMm
+    Ey_ref += Ey_TEm + Ey_TMm
+    Ez_ref += Ez_TEm + Ez_TMm
+    Hx_ref += Hx_TEm + Hx_TMm
+    Hy_ref += Hy_TEm + Hy_TMm
+    Hz_ref += Hz_TEm + Hz_TMm
+
+    Ex_tot += Ex_inc + Ex_ref + Ex_TEp + Ex_TEm + Ex_TMp + Ex_TMm + Ex_trs
+    Ey_tot += Ey_inc + Ey_ref + Ey_TEp + Ey_TEm + Ey_TMp + Ey_TMm + Ey_trs
+    Ez_tot += Ez_inc + Ez_ref + Ez_TEp + Ez_TEm + Ez_TMp + Ez_TMm + Ez_trs
+    Hx_tot += Hx_inc + Hx_ref + Hx_TEp + Hx_TEm + Hx_TMp + Hx_TMm + Hx_trs
+    Hy_tot += Hy_inc + Hy_ref + Hy_TEp + Hy_TEm + Hy_TMp + Hy_TMm + Hy_trs
+    Hz_tot += Hz_inc + Hz_ref + Hz_TEp + Hz_TEm + Hz_TMp + Hz_TMm + Hz_trs
+
+    Hx_inc .*= (1im / impedance)
+    Hy_inc .*= (1im / impedance)
+    Hz_inc .*= (1im / impedance)
+    Hx_ref .*= (1im / impedance)
+    Hy_ref .*= (1im / impedance)
+    Hz_ref .*= (1im / impedance)
+    Hx_tot .*= (1im / impedance)
+    Hy_tot .*= (1im / impedance)
+    Hz_tot .*= (1im / impedance)
 
     incfields = cat(real(Ex_inc), real(Hx_inc), real(Ey_inc), real(Hy_inc), real(Ez_inc), real(Hz_inc), dims=3)
     reffields = cat(real(Ex_ref), real(Hx_ref), real(Ey_ref), real(Hy_ref), real(Ez_ref), real(Hz_ref), dims=3)
     trsfields = cat(real(Ex_trs), real(Hx_trs), real(Ey_trs), real(Hy_trs), real(Ez_trs), real(Hz_trs), dims=3)
-    totfields = cat(real(Ex), real(Hx), real(Ey), real(Hy), real(Ez), real(Hz), dims=3)
+    totfields = cat(real(Ex_tot), real(Hx_tot), real(Ey_tot), real(Hy_tot), real(Ez_tot), real(Hz_tot), dims=3)
 
     title=["Ex", "Hx", "Ey", "Hy", "Ez", "Hz"]
     cmins = []
@@ -593,9 +644,11 @@ function get_left_to_right_field(λ, θ, ϕ, mur, epsr, zm, zp, input::AbstractV
         else
             p = heatmap(slice, title=name, c=:bwr, clims=(-cmax, cmax))
         end
+        # gui(p)
         push!(ps_inc, p)
-        filename = name * ".png"
-        savefig(filename)
+        filename = "./" * name * ".png"
+        # println(filename)
+        # savefig(p, filename)
     end
     plot(ps_inc..., layout=l, plot_title="inc", size=(1200, 1000))
     savefig("inc.png")
@@ -610,7 +663,7 @@ function get_left_to_right_field(λ, θ, ϕ, mur, epsr, zm, zp, input::AbstractV
         end
         push!(ps_ref, p)
         filename = name * ".png"
-        savefig(filename)
+        # savefig(filename)
     end
     plot(ps_ref..., layout=l, plot_title="ref", size=(1200, 1000))
     savefig("ref.png")
@@ -627,7 +680,7 @@ function get_left_to_right_field(λ, θ, ϕ, mur, epsr, zm, zp, input::AbstractV
         cmax = maximum(abs, slice)
         push!(cmaxs, cmax)
         filename = name * ".png"
-        savefig(filename)
+        # savefig(filename)
     end
     plot(ps_trs..., layout=l, plot_title="trs", size=(1200, 1000))
     savefig("trs.png")
@@ -642,12 +695,12 @@ function get_left_to_right_field(λ, θ, ϕ, mur, epsr, zm, zp, input::AbstractV
         end
         push!(ps_tot, p)
         filename = name * ".png"
-        savefig(filename)
+        # savefig(filename)
     end
     plot(ps_tot..., layout=l, plot_title="tot", size=(1200, 1000))
     savefig("tot.png")
     # plot(ps..., layout=l, plot_title="trs", size=(1200, 1000), yformatter=:scientific)
-    return Ex, Ey, Ez, Hx, Hy, Hz, eigvectors, coeff
+    return Ex_tot, Ey_tot, Ez_tot, Hx_tot, Hy_tot, Hz_tot, eigvectors, coeff
 end
 
 um = 1e-6
@@ -663,6 +716,12 @@ epsr = 2.0^2
 ϕ = 0
 # ϕ = π / 6
 
+dx = 10*nm
+dz = 10*nm
+
+Lx = 1000*nm
+Lz = 1500*nm
+
 zm =  600*nm
 zp = 1000*nm
 
@@ -674,4 +733,4 @@ S = zeros(ComplexF64, 4, 4)
 # S[3:4, 3:4] = T2
 
 input = [0., 1.] # [Eix, Eiy]
-Ex, Ey, Ez, Hx, Hy, Hz, eigvectors, coeff = get_left_to_right_field(λ, θ, ϕ, mur, epsr, zm, zp, input)
+Ex, Ey, Ez, Hx, Hy, Hz, eigvectors, coeff = get_left_to_right_field(dx, dz, Lx, Lz, λ, θ, ϕ, mur, epsr, zm, zp, input)
