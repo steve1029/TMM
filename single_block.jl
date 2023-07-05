@@ -2,16 +2,12 @@
 # import Pkg; Pkg.add("PythonPlot") # Due to the SSL certificate issue, it cannot be used in LG INNOTEK.
 # import Pkg; Pkg.add("PlotlyJS"); Pkg.add("PlotlyBase")
 # import Pkg; Pkg.add("UnicodePlots")
-using LinearAlgebra
-using Printf
-using Plots
-# gr()
-# pythonplot()
-# plotlyjs()
-# unicodeplots()
 using Base
 using Distributions
+using LinearAlgebra
 using NPZ
+using Plots
+using Printf
 
 # Calculate corresponding Ez, Hx, Hy and Hz for the given Ex and Ey.
 function get_Amatrix(kx_bar::Number, ky_bar::Number, mur::Number, epsr::Number)
