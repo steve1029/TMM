@@ -1,13 +1,51 @@
-# import Pkg; Pkg.add("NPZ")
-# import Pkg; Pkg.add("PythonPlot") # Due to the SSL certificate issue, it cannot be used in LG INNOTEK.
-# import Pkg; Pkg.add("PlotlyJS"); Pkg.add("PlotlyBase")
-# import Pkg; Pkg.add("UnicodePlots")
+import Pkg
+
+# Check if the package is installed
+if "Plots" in keys(Pkg.dependencies())
+    println("The Plots package is installed.")
+else
+    println("The Plots package is not installed.")
+	Pkg.add("Plots")
+end
+
+if "NPZ" in keys(Pkg.dependencies())
+    println("The NPZ package is installed.")
+else
+    println("The NPZ package is not installed.")
+	Pkg.add("NPZ")
+end
+
+if "LinearAlgebra" in keys(Pkg.dependencies())
+    println("The LinearAlgebra package is installed.")
+else
+    println("The LinearAlgebra package is not installed.")
+	Pkg.add("LinearAlgebra")
+end
+
+if "Distributions" in keys(Pkg.dependencies())
+    println("The Distributions package is installed.")
+else
+    println("The Distributions package is not installed.")
+	Pkg.add("Distributions")
+end
+
+#import Pkg; Pkg.add("PythonPlot") # Due to the SSL certificate issue, it cannot be used in LG INNOTEK.
+#import Pkg; Pkg.add("PlotlyJS"); Pkg.add("PlotlyBase")
+#import Pkg; Pkg.add("UnicodePlots")
+
 using Base
 using Distributions
 using LinearAlgebra
 using NPZ
-using Plots
 using Printf
+using Plots
+
+# Choose the backends of the Plots package.
+gr()
+# pythonplot()
+# plotlyjs()
+# unicodeplots()
+
 
 # Calculate corresponding Ez, Hx, Hy and Hz for the given Ex and Ey.
 function get_Amatrix(kx_bar::Number, ky_bar::Number, mur::Number, epsr::Number)
