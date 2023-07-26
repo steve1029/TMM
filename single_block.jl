@@ -78,13 +78,11 @@ function left_to_right_field_visualization(dx, dz, Lx, Lz, λ, θ, ϕ, mur, epsr
     impedance = sqrt(μ_0 /ε_0)
 
     # wave vector in free space.
+    # Note the the tangential component of the wavevector at the boundary
+    # is continuous, which means that they only differ in the refractive index.
     kx0 = k0 * sin(θ) * cos(ϕ)
     ky0 = k0 * sin(θ) * sin(ϕ)
     kz0 = k0 * cos(θ)
-
-    # wave vector in a single block.
-    kxn = k0 * n * sin(θ) * cos(ϕ)
-    kyn = k0 * n * sin(θ) * sin(ϕ)
 
     # x = 1000*nm:-10*nm:0 # UnitRange object.
     x = 0:dx:Lx # UnitRange object.
@@ -96,7 +94,7 @@ function left_to_right_field_visualization(dx, dz, Lx, Lz, λ, θ, ϕ, mur, epsr
     # Z = repeat(z, length(x), 1)
     # exit(0)
 
-    kzns, eigvectors = get_eigenvectors(k0, kxn, kyn, mur, epsr, impedance)
+    kzns, eigvectors = get_eigenvectors(k0, kx0, ky0, mur, epsr, impedance)
 
     kzTEp = kzns[1]
     kzTEm = kzns[2]
@@ -113,12 +111,21 @@ function left_to_right_field_visualization(dx, dz, Lx, Lz, λ, θ, ϕ, mur, epsr
     # @show eigTMp
     # @show eigTMm
 
-    # @printf("normalized kx in a single block: %.3f\n", kxn/k0)
-    # @printf("normalized ky in a single block: %.3f\n", kyn/k0)
-    @printf("normalized kz of TEp in a single block: %.3f\n", kzTEp/k0)
-    @printf("normalized kz of TEm in a single block: %.3f\n", kzTEm/k0)
-    @printf("normalized kz of TMp in a single block: %.3f\n", kzTMp/k0)
-    @printf("normalized kz of TMm in a single block: %.3f\n", kzTMm/k0)
+    kx_bar = kx0 / k0
+    ky_bar = ky0 / k0
+    kzTEp_bar = kzTEp / k0
+    kzTEm_bar = kzTEm / k0
+    kzTMp_bar = kzTMp / k0
+    kzTMm_bar = kzTMm / k0
+    norm_mag = sqrt(kx_bar^2 + ky_bar^2 + kzTEp_bar^2)
+
+    @printf("normalized kx in a single block: %.3f\n", kx_bar)
+    @printf("normalized ky in a single block: %.3f\n", ky_bar)
+    @printf("normalized kz of TEp in a single block: %.3f\n", kzTEp_bar)
+    @printf("normalized kz of TEm in a single block: %.3f\n", kzTEm_bar)
+    @printf("normalized kz of TMp in a single block: %.3f\n", kzTMp_bar)
+    @printf("normalized kz of TMm in a single block: %.3f\n", kzTMm_bar)
+    @printf("normalized magnitude of the wavevector in a single block: %.3f\n", norm_mag)
 
     cap, cam, R1, T1 = get_the_left_to_right_operators(μ_0, ω, kx0, ky0, kz0, kzns, eigvectors, zm, zp)
 
@@ -242,10 +249,10 @@ function left_to_right_field_visualization(dx, dz, Lx, Lz, λ, θ, ϕ, mur, epsr
     Hz_inc[:,leftregion] = (Hiz .* exp.(1im .* phase_inc))
 
     # For z- <= z < z+
-    phase_TEp = ((kxn.*x) .+ (kyn.*y) .+ (kzTEp.*(z' .- zm)))[:,middleregion]
-    phase_TMp = ((kxn.*x) .+ (kyn.*y) .+ (kzTMp.*(z' .- zm)))[:,middleregion]
-    phase_TEm = ((kxn.*x) .+ (kyn.*y) .+ (kzTEm.*(z' .- zp)))[:,middleregion]
-    phase_TMm = ((kxn.*x) .+ (kyn.*y) .+ (kzTMm.*(z' .- zp)))[:,middleregion]
+    phase_TEp = ((kx0.*x) .+ (ky0.*y) .+ (kzTEp.*(z' .- zm)))[:,middleregion]
+    phase_TMp = ((kx0.*x) .+ (ky0.*y) .+ (kzTMp.*(z' .- zm)))[:,middleregion]
+    phase_TEm = ((kx0.*x) .+ (ky0.*y) .+ (kzTEm.*(z' .- zp)))[:,middleregion]
+    phase_TMm = ((kx0.*x) .+ (ky0.*y) .+ (kzTMm.*(z' .- zp)))[:,middleregion]
 
     Ex_TEp[:,middleregion] = (caTEp .* (eigTEp[1] .* exp.(1im .* phase_TEp)))
     Ex_TEm[:,middleregion] = (caTEm .* (eigTEm[1] .* exp.(1im .* phase_TEm)))
@@ -407,10 +414,6 @@ function right_to_left_field_visualization(dx, dz, Lx, Lz, λ, θ, ϕ, mur, epsr
     ky0 = k0 * sin(θ) * sin(ϕ)
     kz0 = k0 * cos(θ)
 
-    # wave vector in a single block.
-    kxn = k0 * n * sin(θ) * cos(ϕ)
-    kyn = k0 * n * sin(θ) * sin(ϕ)
-
     # x = 1000*nm:-10*nm:0 # UnitRange object.
     x = 0:dx:Lx # UnitRange object.
     z = 0:dz:Lz # UnitRange object.
@@ -421,7 +424,7 @@ function right_to_left_field_visualization(dx, dz, Lx, Lz, λ, θ, ϕ, mur, epsr
     # Z = repeat(z, length(x), 1)
     # exit(0)
 
-    kzns, eigvectors = get_eigenvectors(k0, kxn, kyn, mur, epsr, impedance)
+    kzns, eigvectors = get_eigenvectors(k0, kx0, ky0, mur, epsr, impedance)
 
     kzTEp = kzns[1]
     kzTEm = kzns[2]
@@ -534,10 +537,10 @@ function right_to_left_field_visualization(dx, dz, Lx, Lz, λ, θ, ϕ, mur, epsr
     Hz_trs[:,leftregion] = (Htz .* exp.(1im .* phase_trs))
 
     # For z- <= z < z+
-    phase_TEp = ((kxn.*x) .+ (kyn.*y) .+ (kzTEp.*(z' .- zm)))[:,middleregion]
-    phase_TMp = ((kxn.*x) .+ (kyn.*y) .+ (kzTMp.*(z' .- zm)))[:,middleregion]
-    phase_TEm = ((kxn.*x) .+ (kyn.*y) .+ (kzTEm.*(z' .- zp)))[:,middleregion]
-    phase_TMm = ((kxn.*x) .+ (kyn.*y) .+ (kzTMm.*(z' .- zp)))[:,middleregion]
+    phase_TEp = ((kx0.*x) .+ (ky0.*y) .+ (kzTEp.*(z' .- zm)))[:,middleregion]
+    phase_TMp = ((kx0.*x) .+ (ky0.*y) .+ (kzTMp.*(z' .- zm)))[:,middleregion]
+    phase_TEm = ((kx0.*x) .+ (ky0.*y) .+ (kzTEm.*(z' .- zp)))[:,middleregion]
+    phase_TMm = ((kx0.*x) .+ (ky0.*y) .+ (kzTMm.*(z' .- zp)))[:,middleregion]
 
     Ex_TEp[:,middleregion] = (cbTEp .* (eigTEp[1] .* exp.(1im .* phase_TEp)))
     Ex_TEm[:,middleregion] = (cbTEm .* (eigTEm[1] .* exp.(1im .* phase_TEm)))

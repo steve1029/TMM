@@ -16,8 +16,14 @@ gr()
 um = 1e-6
 nm = 1e-9
 λ = 300 * nm
+k0 = 2*π / λ # wavenumber in free space.
+c = 299792458 # m/s.
+μ_0 = 4*π*10^-7
+ε_0 = 8.8541878128e-12
 mur = 1
 epsr = 2.0^2
+impedance = sqrt(μ_0 /ε_0)
+
 # polar angle and azimuthal angle.
 # θ = π / 12 # radian.
 # ϕ = π / 20 # radian.
@@ -25,6 +31,11 @@ epsr = 2.0^2
 # θ = 0
 ϕ = 0
 # ϕ = π / 6
+
+# wave vector in free space.
+kx0 = k0 * sin(θ) * cos(ϕ)
+ky0 = k0 * sin(θ) * sin(ϕ)
+kz0 = k0 * cos(θ)
 
 dx = 10*nm
 dz = 10*nm
@@ -38,8 +49,9 @@ zp = 1000*nm
 input = [0., 1.] # [Eix, Eiy]
 
 # Get the S matrix of a left half-infinite block.
-Wh, Vh = make_WhVh()
-
+eigvals0, eigvecs0 = get_eigenvectors(k0, kx0, ky0, mur, epsr, impedance)
+Wh, Vh = make_WhVh(μ_0, ω, kx0, ky0, kz0)
+Wp, Vp = make_WpVp(eigvals, eigvecs, zm)
 
 S = zeros(ComplexF64, 4, 4)
 

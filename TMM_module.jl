@@ -3,14 +3,20 @@ module single_block
 	# The following packages are required in this module.
 	using LinearAlgebra
 
-	export get_Amatrix, get_Bmatrix, 
-	get_HxHy, get_Ez, get_Hz, get_eigenvectors, 
-	make_WhVh, make_WpVp, make_WmVm,
-	get_the_left_to_right_operators,
-	get_the_right_to_left_operators
+	export get_Amatrix, get_Bmatrix
+	export get_HxHy, get_Ez, get_Hz 
+	export get_eigenvectors
+	export make_WhVh, make_WpVp, make_WmVm
+	export get_the_left_to_right_operators
+	export get_the_right_to_left_operators
 
     # Calculate corresponding Ez, Hx, Hy and Hz for the given Ex and Ey.
-	function get_Amatrix(kx_bar::Number, ky_bar::Number, mur::Number, epsr::Number)
+	function get_Amatrix(
+		kx_bar::Number, 
+		ky_bar::Number, 
+		mur::Number, 
+		epsr::Number
+	)
 
 		A = zeros(ComplexF64, 2, 2)
 
@@ -30,7 +36,12 @@ module single_block
 	   return A
 	end
 
-	function get_Bmatrix(kx_bar::Number, ky_bar::Number, mur::Number, epsr::Number)
+	function get_Bmatrix(
+		kx_bar::Number, 
+		ky_bar::Number, 
+		mur::Number, 
+		epsr::Number
+	)
 
 		B = zeros(ComplexF64, 2, 2)
 
@@ -50,7 +61,12 @@ module single_block
 	   return B
 	end
 
-	function get_HxHy(k0::Number, kzn::Number, A::AbstractMatrix, input::AbstractVector, impedance)
+	function get_HxHy(
+		k0::Number, 
+		kzn::Number, 
+		A::AbstractMatrix, 
+		input::AbstractVector, 
+		impedance::Number)
 
 		H11 = (1im .* kzn./k0) .* (inv(A) * input)
 
@@ -76,11 +92,11 @@ module single_block
 		return Hz
 	end
 
-    # Eigen vector and eigen value calculation in a single block.
+    # Obtain the eigen vectors and eigenvalues in a medium.
 	function get_eigenvectors(k0, kxn, kyn, mur, epsr, impedance)
 
-		kx_bar = kxn / k0
-		ky_bar = kyn / k0
+		kx_bar = kxn / k0 # it is equal to n sin(θ) cos(ϕ)
+		ky_bar = kyn / k0 # it is equal to n sin(θ) sin(ϕ)
 
 		murx = mur
 		mury = mur
@@ -154,7 +170,7 @@ module single_block
 
     # Notes
 	"""
-	function make_WhVh(μ_0, ω::AbstractFloat, kx::AbstractFloat, ky::AbstractFloat, kz::Real)
+	function make_WhVh(μ_0, ω::Real, kx::Real, ky::Real, kz::Real)
 
 		Wh = LinearAlgebra.I # The most Julianic way of expressing the identity matrix.
 		Vh = zeros(ComplexF64, 2, 2)
@@ -183,7 +199,11 @@ module single_block
 
     # Notes
 	"""
-	function make_WpVp(eigvalues::AbstractVector, eigvecs::AbstractMatrix, z::Real)
+	function make_WpVp(
+		eigvalues::AbstractVector, 
+		eigvecs::AbstractMatrix, 
+		z::Real
+	)
 
 		kz1p = eigvalues[1]
 		kz1m = eigvalues[2]
@@ -236,7 +256,11 @@ module single_block
 		return Wp, Vp
 	end
 
-	function make_WmVm(eigvalues::AbstractVector, eigvecs::AbstractMatrix, z::Real)
+	function make_WmVm(
+		eigvalues::AbstractVector, 
+		eigvecs::AbstractMatrix, 
+		z::Real
+	)
 
 		kz1p = eigvalues[1]
 		kz1m = eigvalues[2]
@@ -289,7 +313,17 @@ module single_block
 		return Wm, Vm
 	end
 
-	function get_the_left_to_right_operators(μ_0, ω, kx0, ky0, kz0, eigvalues, eigvectors, zm, zp)
+	function get_the_left_to_right_operators(
+		μ_0::Real,
+		ω::Number, 
+		kx0::Number, 
+		ky0::Number, 
+		kz0::Number, 
+		eigvalues::AbstractVector, 
+		eigvectors::AbstractMatrix, 
+		zm::Real, 
+		zp::Real
+		)
 		
 		Wh, Vh = make_WhVh(μ_0, ω, kx0, ky0, kz0)
 		Wp0, Vp0 = make_WpVp(eigvalues, eigvectors, 0.)
@@ -323,7 +357,17 @@ module single_block
 		return cap, cam, R, T
 	end
 
-	function get_the_right_to_left_operators(μ_0, ω, kx0, ky0, kz0, eigvalues, eigvectors, zm, zp)
+	function get_the_right_to_left_operators(
+		μ_0::Real,
+		ω::Number, 
+		kx0::Number, 
+		ky0::Number, 
+		kz0::Number, 
+		eigvalues::AbstractVector, 
+		eigvectors::AbstractMatrix, 
+		zm::Real, 
+		zp::Real
+		)
 		
 		Wh, Vh = make_WhVh(μ_0, ω, kx0, ky0, kz0)
 		Wp0, Vp0 = make_WpVp(eigvalues, eigvectors, 0.)
