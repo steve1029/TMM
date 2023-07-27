@@ -17,7 +17,7 @@ using LinearAlgebra
 using NPZ
 using Printf
 using Plots
-using .single_block
+using .TMM
 
 # Choose the backends of the Plots package.
 gr()
@@ -64,7 +64,7 @@ function left_to_right_field_visualization(dx, dz, Lx, Lz, λ, θ, ϕ, mur, epsr
     # Z = repeat(z, length(x), 1)
     # exit(0)
 
-    kzns, eigvectors = get_eigenvectors(k0, kx0, ky0, mur, epsr, impedance)
+    kzns, eigvectors = TMM.get_eigenvectors(k0, kx0, ky0, mur, epsr, impedance)
 
     kzTEp = kzns[1]
     kzTEm = kzns[2]
@@ -97,7 +97,7 @@ function left_to_right_field_visualization(dx, dz, Lx, Lz, λ, θ, ϕ, mur, epsr
     @printf("normalized kz of TMm in a single block: %.3f\n", kzTMm_bar)
     @printf("normalized magnitude of the wavevector in a single block: %.3f\n", norm_mag)
 
-    cap, cam, R1, T1 = get_the_left_to_right_operators(μ_0, ω, kx0, ky0, kz0, kzns, eigvectors, zm, zp)
+    cap, cam, R1, T1 = TMM.get_the_left_to_right_operators(μ_0, ω, kx0, ky0, kz0, kzns, eigvectors, zm, zp)
 
     # @show cap
     # @show cam
@@ -394,7 +394,7 @@ function right_to_left_field_visualization(dx, dz, Lx, Lz, λ, θ, ϕ, mur, epsr
     # Z = repeat(z, length(x), 1)
     # exit(0)
 
-    kzns, eigvectors = get_eigenvectors(k0, kx0, ky0, mur, epsr, impedance)
+    kzns, eigvectors = TMM.get_eigenvectors(k0, kx0, ky0, mur, epsr, impedance)
 
     kzTEp = kzns[1]
     kzTEm = kzns[2]
@@ -406,7 +406,7 @@ function right_to_left_field_visualization(dx, dz, Lx, Lz, λ, θ, ϕ, mur, epsr
     eigTMp = eigvectors[:,3]
     eigTMm = eigvectors[:,4]
 
-    cbp, cbm, R, T = get_the_right_to_left_operators(μ_0, ω, kx0, ky0, kz0, kzns, eigvectors, zm, zp)
+    cbp, cbm, R, T = TMM.get_the_right_to_left_operators(μ_0, ω, kx0, ky0, kz0, kzns, eigvectors, zm, zp)
 
     Eix = input[1]
     Eiy = input[2]

@@ -1,17 +1,21 @@
-module single_block
+module TMM
 
 	# The following packages are required in this module.
-	using LinearAlgebra
+	# using LinearAlgebra
+	import LinearAlgebra as la
 
-	export get_Amatrix, get_Bmatrix
-	export get_HxHy, get_Ez, get_Hz 
+	export _get_Amatrix, _get_Bmatrix
+	export _get_HxHy, _get_Ez, _get_Hz 
+	export _make_WhVh, _make_WpVp, _make_WmVm
+
 	export get_eigenvectors
-	export make_WhVh, make_WpVp, make_WmVm
 	export get_the_left_to_right_operators
 	export get_the_right_to_left_operators
+	export get_scc_of_a_block
+	export get_scc_of_each_n_blocks
 
     # Calculate corresponding Ez, Hx, Hy and Hz for the given Ex and Ey.
-	function get_Amatrix(
+	function _get_Amatrix(
 		kx_bar::Number, 
 		ky_bar::Number, 
 		mur::Number, 
@@ -36,7 +40,7 @@ module single_block
 	   return A
 	end
 
-	function get_Bmatrix(
+	function _get_Bmatrix(
 		kx_bar::Number, 
 		ky_bar::Number, 
 		mur::Number, 
@@ -61,7 +65,7 @@ module single_block
 	   return B
 	end
 
-	function get_HxHy(
+	function _get_HxHy(
 		k0::Number, 
 		kzn::Number, 
 		A::AbstractMatrix, 
@@ -79,24 +83,24 @@ module single_block
 		return Hx, Hy
 	end
 
-	function get_Ez(ky_bar, kx_bar, Hy, Hx, epsr, impedence)
+	function _get_Ez(ky_bar, kx_bar, Hy, Hx, epsr, impedence)
 		Hy *= (impedence / 1im)
 		Hx *= (impedence / 1im)
 		Ez = 1im.*(ky_bar.*Hx .- kx_bar.*Hy) ./ epsr
 		return Ez
 	end
 
-	function get_Hz(ky_bar, kx_bar, Ey, Ex, mur, impedance)
+	function _get_Hz(ky_bar, kx_bar, Ey, Ex, mur, impedance)
 		Hz = 1im.*(ky_bar.*Ex .- kx_bar.*Ey) ./ mur
 		Hz*= (1im / impedance)
 		return Hz
 	end
 
     # Obtain the eigen vectors and eigenvalues in a medium.
-	function get_eigenvectors(k0, kxn, kyn, mur, epsr, impedance)
+	function get_eigenvectors(k0, kx0, ky0, mur, epsr, impedance)
 
-		kx_bar = kxn / k0 # it is equal to n sin(θ) cos(ϕ)
-		ky_bar = kyn / k0 # it is equal to n sin(θ) sin(ϕ)
+		kx_bar = kx0 / k0 # it is equal to sin(θ) cos(ϕ)
+		ky_bar = ky0 / k0 # it is equal to sin(θ) sin(ϕ)
 
 		murx = mur
 		mury = mur
@@ -106,12 +110,12 @@ module single_block
 		epsry = epsr
 		epsrz = epsr
 
-		A = get_Amatrix(kx_bar, ky_bar, mur, epsr)
-		B = get_Bmatrix(kx_bar, ky_bar, mur, epsr)
+		A = _get_Amatrix(kx_bar, ky_bar, mur, epsr)
+		B = _get_Bmatrix(kx_bar, ky_bar, mur, epsr)
 
 		C = (k0^2) .* (A * B)
 
-		eigvals, EyEx_eigvecs = LinearAlgebra.eigen(C)
+		eigvals, EyEx_eigvecs = la.eigen(C)
 
 		kzTEp = sqrt(-eigvals[1]) # Left-to-right, TE mode.
 		kzTEm =-sqrt(-eigvals[1]) # Right-to-left, TE mode.
@@ -126,42 +130,44 @@ module single_block
 		# Note that H field (magnetic induction vector) is scaled by 1im * sqrt(ε_0/μ_0) for convenience,
 		# i.e., H_hat = 1im * sqrt(ε_0/μ_0) * H_bar, and we are calculating H_hat.
 		# Also, the order of the eigenvector is reversed, i.e., H11 = [Hy, Hx], not [Hx, Hy].
-		HxTEp, HyTEp = get_HxHy(k0, kzTEp, A, [EyTE, ExTE], impedance)
-		HxTEm, HyTEm = get_HxHy(k0, kzTEm, A, [EyTE, ExTE], impedance)
-		HxTMp, HyTMp = get_HxHy(k0, kzTMp, A, [EyTM, ExTM], impedance)
-		HxTMm, HyTMm = get_HxHy(k0, kzTMm, A, [EyTM, ExTM], impedance)
+		HxTEp, HyTEp = _get_HxHy(k0, kzTEp, A, [EyTE, ExTE], impedance)
+		HxTEm, HyTEm = _get_HxHy(k0, kzTEm, A, [EyTE, ExTE], impedance)
+		HxTMp, HyTMp = _get_HxHy(k0, kzTMp, A, [EyTM, ExTM], impedance)
+		HxTMm, HyTMm = _get_HxHy(k0, kzTMm, A, [EyTM, ExTM], impedance)
 
-		EzTEp = get_Ez(ky_bar, kx_bar, HyTEp, HxTEp, epsrz, impedance)
-		EzTEm = get_Ez(ky_bar, kx_bar, HyTEm, HxTEm, epsrz, impedance)
-		EzTMp = get_Ez(ky_bar, kx_bar, HyTMp, HxTMp, epsrz, impedance)
-		EzTMm = get_Ez(ky_bar, kx_bar, HyTMm, HxTMm, epsrz, impedance)
+		EzTEp = _get_Ez(ky_bar, kx_bar, HyTEp, HxTEp, epsrz, impedance)
+		EzTEm = _get_Ez(ky_bar, kx_bar, HyTEm, HxTEm, epsrz, impedance)
+		EzTMp = _get_Ez(ky_bar, kx_bar, HyTMp, HxTMp, epsrz, impedance)
+		EzTMm = _get_Ez(ky_bar, kx_bar, HyTMm, HxTMm, epsrz, impedance)
 
-		HzTE = get_Hz(ky_bar, kx_bar, EyTE, ExTE, murz, impedance)
-		HzTM = get_Hz(ky_bar, kx_bar, EyTM, ExTM, murz, impedance)
+		HzTE = _get_Hz(ky_bar, kx_bar, EyTE, ExTE, murz, impedance)
+		HzTM = _get_Hz(ky_bar, kx_bar, EyTM, ExTM, murz, impedance)
 
 		eigenvec1 = [ExTE, EyTE, EzTEp, HxTEp, HyTEp, HzTE] # Left-to-right, TE mode.
 		eigenvec2 = [ExTE, EyTE, EzTEm, HxTEm, HyTEm, HzTE] # Right-to-left, TE mode.
 		eigenvec3 = [ExTM, EyTM, EzTMp, HxTMp, HyTMp, HzTM] # Left-to-right, TM mode.
 		eigenvec4 = [ExTM, EyTM, EzTMm, HxTMm, HyTMm, HzTM] # Right-to-left, TM mode.
 
-		_eigvalues = [kzTEp, kzTEm, kzTMp, kzTMm]
-		_eigenvecs = hcat(eigenvec1, eigenvec2, eigenvec3, eigenvec4)
+		eigvalues = [kzTEp, kzTEm, kzTMp, kzTMm]
+		eigenvecs = hcat(eigenvec1, eigenvec2, eigenvec3, eigenvec4)
 
-		return _eigvalues, _eigenvecs
+		return eigvalues, eigenvecs
 	end
 
 	"""
-		make_WhVh(ω, kx, ky, kz, eigvecs, z)
+		_make_WhVh(ω, kx, ky, kz, eigvecs, z)
 
 	Make Wh and Vh matrices.
 
     # Arguments
-	- 'ω::Float': angular frequency of the input wave.
-	- 'kx::Float': kx in free space.
-	- 'ky::Float': ky in free space.
-	- 'kz::Float': kz in free space.
+	- 'ω::Real': angular frequency of the input wave.
+	- 'kx::Real': kx in free space.
+	- 'ky::Real': ky in free space.
+	- 'kz::Real': kz in free space.
 
     # Returns
+	- 'Wh::AbstractMatrix': 2x2 identity matrix.
+	- 'Vh::AbstractMatrix': 2x2 matrix.
 
     # Examples
 	'''julia
@@ -170,9 +176,9 @@ module single_block
 
     # Notes
 	"""
-	function make_WhVh(μ_0, ω::Real, kx::Real, ky::Real, kz::Real)
+	function _make_WhVh(μ_0, ω::Real, kx::Real, ky::Real, kz::Real)
 
-		Wh = LinearAlgebra.I # The most Julianic way of expressing the identity matrix.
+		Wh = la.I # The most Julianic way of expressing the identity matrix.
 		Vh = zeros(ComplexF64, 2, 2)
 
 		Vh[1,1] = kx * ky / kz / ω / μ_0
@@ -184,7 +190,7 @@ module single_block
 	end
 
 	"""
-		make_WpVp(eigvecs, z)
+		_make_WpVp(eigvecs, z)
 
 	Make some matrices and calculate the coupling coeffient matrix operators.
 
@@ -199,7 +205,7 @@ module single_block
 
     # Notes
 	"""
-	function make_WpVp(
+	function _make_WpVp(
 		eigvalues::AbstractVector, 
 		eigvecs::AbstractMatrix, 
 		z::Real
@@ -256,7 +262,7 @@ module single_block
 		return Wp, Vp
 	end
 
-	function make_WmVm(
+	function _make_WmVm(
 		eigvalues::AbstractVector, 
 		eigvecs::AbstractMatrix, 
 		z::Real
@@ -325,11 +331,11 @@ module single_block
 		zp::Real
 		)
 		
-		Wh, Vh = make_WhVh(μ_0, ω, kx0, ky0, kz0)
-		Wp0, Vp0 = make_WpVp(eigvalues, eigvectors, 0.)
-		Wpp, Vpp = make_WpVp(eigvalues, eigvectors, zp-zm)
-		Wm0, Vm0 = make_WmVm(eigvalues, eigvectors, 0)
-		Wmm, Vmm = make_WmVm(eigvalues, eigvectors, zm-zp)
+		Wh, Vh = _make_WhVh(μ_0, ω, kx0, ky0, kz0)
+		Wp0, Vp0 = _make_WpVp(eigvalues, eigvectors, 0.)
+		Wpp, Vpp = _make_WpVp(eigvalues, eigvectors, zp-zm)
+		Wm0, Vm0 = _make_WmVm(eigvalues, eigvectors, 0)
+		Wmm, Vmm = _make_WmVm(eigvalues, eigvectors, zm-zp)
 
 		A = inv(Wh)*Wp0 + inv(Vh)*Vp0
 		B = inv(Wh)*Wmm + inv(Vh)*Vmm
@@ -369,11 +375,11 @@ module single_block
 		zp::Real
 		)
 		
-		Wh, Vh = make_WhVh(μ_0, ω, kx0, ky0, kz0)
-		Wp0, Vp0 = make_WpVp(eigvalues, eigvectors, 0.)
-		Wpp, Vpp = make_WpVp(eigvalues, eigvectors, zp-zm)
-		Wm0, Vm0 = make_WmVm(eigvalues, eigvectors, 0)
-		Wmm, Vmm = make_WmVm(eigvalues, eigvectors, zm-zp)
+		Wh, Vh = _make_WhVh(μ_0, ω, kx0, ky0, kz0)
+		Wp0, Vp0 = _make_WpVp(eigvalues, eigvectors, 0.)
+		Wpp, Vpp = _make_WpVp(eigvalues, eigvectors, zp-zm)
+		Wm0, Vm0 = _make_WmVm(eigvalues, eigvectors, 0)
+		Wmm, Vmm = _make_WmVm(eigvalues, eigvectors, zm-zp)
 
 		A = inv(Wh)*Wp0 + inv(Vh)*Vp0
 		B = inv(Wh)*Wmm + inv(Vh)*Vmm
@@ -399,6 +405,122 @@ module single_block
 		T = inv(Wh) * (Wp0*cbp + Wmm*cbm)
 
 		return cbp, cbm, R, T
+	end
+
+	function get_scc_of_a_block(μ_0, ω, kx0, ky0, mur, epsr, impedance, zm, zp)
+
+		eigvals, eigvecs = TMM.get_eigenvectors(k0, kx0, ky0, mur, epsr, impedance)
+		cap, cam, Ra, Ta = TMM.get_the_left_to_right_operators(μ_0, ω, kx0, ky0, kz0, eigvals, eigvecs, zm, zp)
+		cbp, cbm, Rb, Tb = TMM.get_the_right_to_left_operators(μ_0, ω, kx0, ky0, kz0, eigvals, eigvecs, zm, zp)
+
+		S = zeros(ComplexF64, 4, 4)
+		S[1:2, 1:2] = Ta
+		S[1:2, 3:4] = Ra
+		S[3:4, 1:2] = Rb
+		S[3:4, 3:4] = Tb
+
+		Ca = zeros(ComplexF64, 4, 2)
+		Cb = zeros(ComplexF64, 4, 2)
+
+		Ca[1:2, :] = cap
+		Ca[3:4, :] = cam
+		Cb[1:2, :] = cbp
+		Cb[3:4, :] = cbm
+
+		return S, Ca, Cb
+
+	end
+
+	function get_scc_of_each_n_blocks(N, μ_0, ω, kx0, ky0, murs, epsrs, impedance)
+
+		# For each n blocks, get the S matrix and
+		# the Coupling coefficient matrices.
+		Ss = Matrix{ComplexF64}[]
+		Cas = Matrix{ComplexF64}[]
+		Cbs = Matrix{ComplexF64}[]
+		# Ras = Matrix{Float64}[]
+		# Rbs = Matrix{Float64}[]
+		# Tas = Matrix{Float64}[]
+		# Tbs = Matrix{Float64}[]
+
+		for i in 1:N
+
+			S, Ca, Cb = get_scc_of_a_block(μ_0, ω, kx0, ky0, murs[i], epsrs[i], impedance, z[i], z[i+1])
+
+			push!(Ss, S)
+			push!(Cas, Ca)
+			push!(Cbs, Cb)
+			# push!(Tas, Ta)
+			# push!(Ras, Ra)
+			# push!(Rbs, Rb)
+			# push!(Tbs, Tb)
+		end
+
+		return Ss, Cas, Cbs
+
+	end
+
+	function redheffer(S1, S2, Ca1, Cb1, Ca2, Cb2)
+
+		T11a = S1[1:2, 1:2]
+		R11a = S1[1:2, 3:4]
+		T11b = S1[1:2, 1:2]
+		R11b = S1[1:2, 3:4]
+		
+		T22a = S2[1:2, 1:2]
+		R22a = S2[1:2, 3:4]
+		T22b = S2[1:2, 1:2]
+		R22b = S2[1:2, 3:4]
+
+		R12a = R22a + T22a * inv(la.I - R11a*R22b) * R11a * T22b
+		R12b = R11b + T11b * inv(la.I - R22b*R11a) * R22b * T11a
+		T12a = T22a * inv(la.I - R11a * R22b) * T11a
+		T12b = T11b * inv(la.I - R22b * R11a) * T22b
+
+		S12 = zeros(ComplexF64, 4, 4)
+		S12[1:2, 1:2] = T12a
+		S12[1:2, 3:4] = R12a
+		S12[3:4, 1:2] = T12b
+		S12[3:4, 3:4] = R12b
+
+		cap111 = Ca1[1:2, :]
+		cam111 = Ca1[3:4, :]
+		cbp111 = Cb1[1:2, :]
+		cbm111 = Cb1[3:4, :]
+
+		cap222 = Ca2[1:2, :]
+		cam222 = Ca2[3:4, :]
+		cbp222 = Cb2[1:2, :]
+		cbm222 = Cb2[3:4, :]
+
+		cap121 = cap111 + cbp111 * inv(la.I-R22b*R11a) * R22b * T11a
+		cam121 = cam111 + cbm111 * inv(la.I-R22b*R11a) * R22b * T11a
+
+		cbp121 = cbp111 * inv(la.I - R22b * R11a) * T22b
+		cbm121 = cbm111 * inv(la.I - R22b * R11a) * T22b
+
+		cap122 = cap222 * inv(la.I - R11a*R22b) * T11a
+		cam122 = cam222 * inv(la.I - R11a*R22b) * T11a
+
+		cbp122 = cbp222 + cap222 * inv(la.I - R11a*R22b) * R11a * T22b
+		cbm122 = cbm222 + cam222 * inv(la.I - R11a*R22b) * R11a * T22b
+
+		ca121 = zeros(ComplexF64, 4, 2)
+		ca122 = zeros(ComplexF64, 4, 2)
+
+		ca121[1:2, :] = cap121
+		ca121[3:4, :] = cam121
+		
+		cb121[1:2, :] = cbp121
+		cb121[3:4, :] = cbm121
+		
+		ca122[1:2, :] = cap122
+		ca122[3:4, :] = cam122
+		
+		cb122[1:2, :] = cbp122
+		cb122[3:4, :] = cbm122
+		
+		return S12, ca121, ca122, cb121, cb122
 	end
 
 end # end of a module.
