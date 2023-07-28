@@ -460,7 +460,7 @@ module TMM
 
 	end
 
-	function redheffer(S1, S2, Ca1, Cb1, Ca2, Cb2)
+	function redheffer_two_blocks(S1, S2, Ca1, Cb1, Ca2, Cb2)
 
 		T11a = S1[1:2, 1:2]
 		R11a = S1[1:2, 3:4]
@@ -507,6 +507,8 @@ module TMM
 
 		ca121 = zeros(ComplexF64, 4, 2)
 		ca122 = zeros(ComplexF64, 4, 2)
+		cb121 = zeros(ComplexF64, 4, 2)
+		cb122 = zeros(ComplexF64, 4, 2)
 
 		ca121[1:2, :] = cap121
 		ca121[3:4, :] = cam121
@@ -519,8 +521,170 @@ module TMM
 		
 		cb122[1:2, :] = cbp122
 		cb122[3:4, :] = cbm122
+
+		Ca = [ca121, ca122] # of which the type is 'Vector{Matrix{ComplexF64}}'.
+		Cb = [cb121, cb122]
 		
-		return S12, ca121, ca122, cb121, cb122
+		return S12, Ca, Cb
+	end
+
+	"""
+		redheffer_left_blocks(m, l, Sl, Sr, Cals, Cbls, Cars, Cbrs)
+
+	Obtain the scattering matrix and the coupling coefficient matrices
+	of the new blocks using the previous partial blocks.
+	The previous partial blocks on the left will be denoted as 'l' 
+	in the name of the variable and the one the right will be 'r'.
+
+	# Arguments
+	- 'm':
+	- 'l':
+	- 'Sl':
+	- 'Sr':
+	- 'Cals':
+	- 'Cbls':
+	- 'Cars':
+	- 'Cbrs':
+
+	# Returns
+
+	# Examples
+
+	"""
+	function redheffer_L_blocks(
+		m::Signed, 
+		Sl::DenseMatrix, 
+		Sr::DenseMatrix, 
+		Cals::Vector{Matrix{ComplexF64}},
+		Cbls::Vector{Matrix{ComplexF64}}
+	)
+
+		Tl_LtoR = Sl[1:2, 1:2]
+		Rl_LtoR = Sl[1:2, 3:4]
+		Rl_RtoL = Sl[3:4, 1:2]
+		Tl_RtoL = Sl[3:4, 3:4]
+
+		Tr_LtoR = Sr[1:2, 1:2]
+		Rr_LtoR = Sr[1:2, 3:4]
+		Rr_RtoL = Sr[3:4, 1:2]
+		Tr_RtoL = Sr[3:4, 3:4]
+
+		cas = Matrix{ComplexF64}[]
+		cbs = Matrix{ComplexF64}[]
+
+		R_RtoL = Rl_RtoL + Tl_RtoL*inv(la.I - Rr_RtoL*Rl_LtoR)*Rr_RtoL*Tl_LtoR
+		T_LtoR = Rr_LtoR * inv(la.I - Rl_LtoR*Rr_RtoL)*Tl_LtoR
+
+		for k in 1:m+1
+
+			ca = zeros(ComplexF64, 4, 2)
+			cb = zeros(ComplexF64, 4, 2)
+
+			calkp = Cals[k][1:2, :]
+			calkm = Cals[k][3:4, :]
+			cblkp = Cbls[k][1:2, :]
+			cblkm = Cbls[k][3:4, :]
+
+			cap = calkp + cblkp*inv(la.I - Rr_RtoL*Rl_LtoR)*Rr_RtoL*Tl_LtoR
+			cam = calkm + cblkm*inv(la.I - Rr_RtoL*Rl_LtoR)*Rr_RtoL*Tl_LtoR
+			cbp = cblkp * inv(la.I - Rr_RtoL*Rl_LtoR)*Tr_RtoL
+			cbm = cblkm * inv(la.I - Rr_RtoL*Rl_LtoR)*Tr_RtoL
+
+			ca[1:2, :] = cap
+			ca[3:4, :] = cam
+
+			cb[1:2, :] = cbp
+			cb[3:4, :] = cbm
+
+			push!(cas, ca)
+			push!(cbs, cb)
+		end
+		
+		return R_RtoL, T_LtoR, cas, cbs
+	end
+
+	function redheffer_R_blocks(
+		l::Signed, 
+		Sl::DenseMatrix, 
+		Sr::DenseMatrix, 
+		Cars::Vector{Matrix{ComplexF64}}, 
+		Cbrs::Vector{Matrix{ComplexF64}}
+	)
+
+		Tl_LtoR = Sl[1:2, 1:2]
+		Rl_LtoR = Sl[1:2, 3:4]
+		Rl_RtoL = Sl[3:4, 1:2]
+		Tl_RtoL = Sl[3:4, 3:4]
+
+		Tr_LtoR = Sr[1:2, 1:2]
+		Rr_LtoR = Sr[1:2, 3:4]
+		Rr_RtoL = Sr[3:4, 1:2]
+		Tr_RtoL = Sr[3:4, 3:4]
+
+		cas = Vector{ComplexF64}[]
+		cbs = Vector{ComplexF64}[]
+
+		R_LtoR = Rr_LtoR + Tr_LtoR*inv(la.I - Rl_LtoR*Rr_RtoL)*Rl_LtoR*Tr_RtoL
+		T_RtoL = Tl_RtoL * inv(la.I - Rr_RtoL*Rl_LtoR)*Tr_RtoL
+
+		for k in 1:l
+
+			ca = zeros(ComplexF64, 4, 2)
+			cb = zeros(ComplexF64, 4, 2)
+
+			carkp = Cars[k][1:2, :]
+			carkm = Cars[k][3:4, :]
+			cbrkp = Cbrs[k][1:2, :]
+			cbrkm = Cbrs[k][3:4, :]
+
+			cap = carkp * inv(la.I - Rl_LtoR*Rr_RtoL) * Tl_LtoR
+			cam = carkm * inv(la.I - Rl_LtoR*Rr_RtoL) * Tl_LtoR
+			cbp = cbrkp + carkp * inv(la.I-Rl_LtoR*Rr_RtoL)*Rl_LtoR*Tr_RtoL
+			cbm = cbrkm + carkm * inv(la.I-Rl_LtoR*Rr_RtoL)*Rl_LtoR*Tr_RtoL
+
+			ca[1:2, :] = cap
+			ca[3:4, :] = cam
+
+			cb[1:2, :] = cbp
+			cb[3:4, :] = cbm
+
+			push!(cas, ca)
+			push!(cbs, cb)
+		end
+		
+		return R_LtoR, T_RtoL, cas, cbs
+	end
+
+	function redheffer_n_blocks(Ss, Cas, Cbs)
+
+		# The total number of the blocks.
+		N = length(Ss) # It should be noted that N = m + l + 1
+
+		if N == 1
+			# Since there is only a single block, m=l=0.
+			S, Ca, Cb = get_scc_of_a_block(μ_0, ω, kx0, ky0, mur, epsr, impedance, zm, zp)
+		else
+			# For more than one block, let us consider the left and right portion of the blocks.
+			m = 0
+			l = 1
+
+			R_RtoL, T_LtoR, cals, cbls = redheffer_L_blocks(m, Ss[1], Ss[2], Cas[1], Cbs[1])
+			R_LtoR, T_RtoL, cars, cbrs = redheffer_R_blocks(l, Ss[1], Ss[2], Cas[2], Cbs[2])
+
+			S_temp = Matrix{ComplexF64}[]
+			S_chunk = zeros(ComplexF64, 4, 4)
+			S_chunk[1:2, 1:2] = T_LtoR
+			S_chunk[1:2, 3:4] = R_LtoR
+			S_chunk[3:4, 1:2] = R_RtoL
+			S_chunk[3:4, 3:4] = T_RtoL
+
+			push!(S_temp, S_chunk)
+			for i in 1:(N-1)
+			end
+		end
+
+		return
+
 	end
 
 end # end of a module.
