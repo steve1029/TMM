@@ -431,7 +431,7 @@ module TMM
 
 	end
 
-	function get_scc_of_each_n_blocks(N, μ_0, ω, kx0, ky0, murs, epsrs, impedance)
+	function get_scc_of_each_n_blocks(N, μ_0, ω, impedance, kx0, ky0, zs, murs, epsrs)
 
 		# For each n blocks, get the S matrix and
 		# the Coupling coefficient matrices.
@@ -445,7 +445,7 @@ module TMM
 
 		for i in 1:N
 
-			S, Ca, Cb = get_scc_of_a_block(μ_0, ω, kx0, ky0, murs[i], epsrs[i], impedance, z[i], z[i+1])
+			S, Ca, Cb = get_scc_of_a_block(μ_0, ω, kx0, ky0, murs[i], epsrs[i], impedance, zs[i], zs[i+1])
 
 			push!(Ss, S)
 			push!(Cas, Ca)
@@ -553,8 +553,8 @@ module TMM
 	"""
 	function redheffer_L_blocks(
 		m::Signed, 
-		Sl::DenseMatrix, 
-		Sr::DenseMatrix, 
+		Sl::Matrix{ComplexF64}, 
+		Sr::Matrix{ComplexF64}, 
 		Cals::Vector{Matrix{ComplexF64}},
 		Cbls::Vector{Matrix{ComplexF64}}
 	)
@@ -569,16 +569,18 @@ module TMM
 		Rr_RtoL = Sr[3:4, 1:2]
 		Tr_RtoL = Sr[3:4, 3:4]
 
-		cas = Matrix{ComplexF64}[]
-		cbs = Matrix{ComplexF64}[]
+		# Obtain the reflection and transmission coefficient matrix operators.
+		R_RtoL_nnml = Rl_RtoL + Tl_RtoL*inv(la.I - Rr_RtoL*Rl_LtoR)*Rr_RtoL*Tl_LtoR
+		T_LtoR_nnml = Tr_LtoR * inv(la.I - Rl_LtoR*Rr_RtoL)*Tl_LtoR
 
-		R_RtoL = Rl_RtoL + Tl_RtoL*inv(la.I - Rr_RtoL*Rl_LtoR)*Rr_RtoL*Tl_LtoR
-		T_LtoR = Rr_LtoR * inv(la.I - Rl_LtoR*Rr_RtoL)*Tl_LtoR
+		# Obtain the coupling coefficient matrix operators of each block.
+		ca_nnmls_L = Matrix{ComplexF64}[]
+		cb_nnmls_L = Matrix{ComplexF64}[]
 
 		for k in 1:m+1
 
-			ca = zeros(ComplexF64, 4, 2)
-			cb = zeros(ComplexF64, 4, 2)
+			ca_nnml_L = zeros(ComplexF64, 4, 2)
+			cb_nnml_L = zeros(ComplexF64, 4, 2)
 
 			calkp = Cals[k][1:2, :]
 			calkm = Cals[k][3:4, :]
@@ -590,23 +592,22 @@ module TMM
 			cbp = cblkp * inv(la.I - Rr_RtoL*Rl_LtoR)*Tr_RtoL
 			cbm = cblkm * inv(la.I - Rr_RtoL*Rl_LtoR)*Tr_RtoL
 
-			ca[1:2, :] = cap
-			ca[3:4, :] = cam
+			ca_nnml_L[1:2, :] = cap
+			ca_nnml_L[3:4, :] = cam
+			cb_nnml_L[1:2, :] = cbp
+			cb_nnml_L[3:4, :] = cbm
 
-			cb[1:2, :] = cbp
-			cb[3:4, :] = cbm
-
-			push!(cas, ca)
-			push!(cbs, cb)
+			push!(ca_nnmls_L, ca_nnml_L)
+			push!(cb_nnmls_L, cb_nnml_L)
 		end
 		
-		return R_RtoL, T_LtoR, cas, cbs
+		return R_RtoL_nnml, T_LtoR_nnml, ca_nnmls_L, cb_nnmls_L
 	end
 
 	function redheffer_R_blocks(
 		l::Signed, 
-		Sl::DenseMatrix, 
-		Sr::DenseMatrix, 
+		Sl::Matrix{ComplexF64}, 
+		Sr::Matrix{ComplexF64}, 
 		Cars::Vector{Matrix{ComplexF64}}, 
 		Cbrs::Vector{Matrix{ComplexF64}}
 	)
@@ -621,16 +622,18 @@ module TMM
 		Rr_RtoL = Sr[3:4, 1:2]
 		Tr_RtoL = Sr[3:4, 3:4]
 
-		cas = Vector{ComplexF64}[]
-		cbs = Vector{ComplexF64}[]
+		# Obtain the reflection and transmission coefficient matrix operators.
+		R_LtoR_nnml = Rr_LtoR + Tr_LtoR*inv(la.I - Rl_LtoR*Rr_RtoL)*Rl_LtoR*Tr_RtoL
+		T_RtoL_nnml = Tl_RtoL * inv(la.I - Rr_RtoL*Rl_LtoR)*Tr_RtoL
 
-		R_LtoR = Rr_LtoR + Tr_LtoR*inv(la.I - Rl_LtoR*Rr_RtoL)*Rl_LtoR*Tr_RtoL
-		T_RtoL = Tl_RtoL * inv(la.I - Rr_RtoL*Rl_LtoR)*Tr_RtoL
+		# Obtain the coupling coefficient matrix operators of each block.
+		ca_nnmls_R = Vector{ComplexF64}[]
+		cb_nnmls_R = Vector{ComplexF64}[]
 
 		for k in 1:l
 
-			ca = zeros(ComplexF64, 4, 2)
-			cb = zeros(ComplexF64, 4, 2)
+			ca_nnml_R = zeros(ComplexF64, 4, 2)
+			cb_nnml_R = zeros(ComplexF64, 4, 2)
 
 			carkp = Cars[k][1:2, :]
 			carkm = Cars[k][3:4, :]
@@ -642,48 +645,78 @@ module TMM
 			cbp = cbrkp + carkp * inv(la.I-Rl_LtoR*Rr_RtoL)*Rl_LtoR*Tr_RtoL
 			cbm = cbrkm + carkm * inv(la.I-Rl_LtoR*Rr_RtoL)*Rl_LtoR*Tr_RtoL
 
-			ca[1:2, :] = cap
-			ca[3:4, :] = cam
+			ca_nnml_R[1:2, :] = cap
+			ca_nnml_R[3:4, :] = cam
+			cb_nnml_R[1:2, :] = cbp
+			cb_nnml_R[3:4, :] = cbm
 
-			cb[1:2, :] = cbp
-			cb[3:4, :] = cbm
-
-			push!(cas, ca)
-			push!(cbs, cb)
+			push!(ca_nnmls_R, ca_nnml_R)
+			push!(cb_nnmls_R, cb_nnml_R)
 		end
 		
-		return R_LtoR, T_RtoL, cas, cbs
+		return R_LtoR_nnml, T_RtoL_nnml, ca_nnmls_R, cb_nnmls_R
 	end
 
-	function redheffer_n_blocks(Ss, Cas, Cbs)
+	"""
+		redheffer_n_blocks(Ss, Cas, Cbs)
+
+	Obtain the scattering matrix and the coupling coefficient matrix
+	operators of the combined multiblock M^(n, n+m+l).
+
+	# Arguments
+	# Returns
+	# Examples
+	"""
+	function redheffer_n_blocks(
+		N, 
+		μ_0, 
+		ω, 
+		impedance,
+		kx0, 
+		ky0, 
+		zs,
+		murs, 
+		epsrs
+	)
+
+		Ss, Cas, Cbs = get_scc_of_each_n_blocks(N, μ_0, ω, impedance, kx0, ky0, zs, murs, epsrs)
 
 		# The total number of the blocks.
 		N = length(Ss) # It should be noted that N = m + l + 1
 
 		if N == 1
-			# Since there is only a single block, m=l=0.
-			S, Ca, Cb = get_scc_of_a_block(μ_0, ω, kx0, ky0, mur, epsr, impedance, zm, zp)
+			newS, newCa, newCb = Ss[1], Cas[1], Cbs[1]
 		else
 			# For more than one block, let us consider the left and right portion of the blocks.
 			m = 0
 			l = 1
 
-			R_RtoL, T_LtoR, cals, cbls = redheffer_L_blocks(m, Ss[1], Ss[2], Cas[1], Cbs[1])
-			R_LtoR, T_RtoL, cars, cbrs = redheffer_R_blocks(l, Ss[1], Ss[2], Cas[2], Cbs[2])
+			newS = Ss[1]
+			newCa = Cas[1]
+			newCb = Cbs[1]
 
-			S_temp = Matrix{ComplexF64}[]
-			S_chunk = zeros(ComplexF64, 4, 4)
-			S_chunk[1:2, 1:2] = T_LtoR
-			S_chunk[1:2, 3:4] = R_LtoR
-			S_chunk[3:4, 1:2] = R_RtoL
-			S_chunk[3:4, 3:4] = T_RtoL
+			for i in 1:(N-l)
+				R_RtoL_nnml, T_LtoR_nnml, ca_nnmls_L, cb_nnmls_L = redheffer_L_blocks(m, newS, Ss[i+1], newCa, Cas[i+1])
+				R_LtoR_nnml, T_RtoL_nnml, ca_nnmls_R, cb_nnmls_R = redheffer_R_blocks(l, newS, Ss[i+1], newCb, Cbs[i+1])
 
-			push!(S_temp, S_chunk)
-			for i in 1:(N-1)
+				newCa = [ca_nnmls_L; ca_nnmls_R]
+				newCb = [cb_nnmls_L; cb_nnmls_R]
+
+				@assert length(Ca) == N
+				@assert length(Cb) == N
+
+				# Update the new scattering matrix.
+				newS[1:2, 1:2] = T_LtoR_nnml
+				newS[1:2, 3:4] = R_LtoR_nnml
+				newS[3:4, 1:2] = R_RtoL_nnml
+				newS[3:4, 3:4] = T_RtoL_nnml
+
+				m += 1
 			end
+
 		end
 
-		return
+		return newS, newCa, newCb
 
 	end
 
