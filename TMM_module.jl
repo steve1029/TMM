@@ -13,6 +13,10 @@ module TMM
 	export get_the_right_to_left_operators
 	export get_scc_of_a_block
 	export get_scc_of_each_n_blocks
+	export redheffer_two_blocks
+	export redheffer_L_blocks
+	export redheffer_R_blocks
+	export redheffer_n_blocks
 
     # Calculate corresponding Ez, Hx, Hy and Hz for the given Ex and Ey.
 	function _get_Amatrix(
@@ -357,7 +361,7 @@ module TMM
 		cap = ca[1:2,1:2]
 		cam = ca[3:4,1:2]
 
-		R = inv(Wh) * (Wp0*cap + Wmm*cam - Wh*I)
+		R = inv(Wh) * (Wp0*cap + Wmm*cam - Wh*la.I)
 		T = inv(Wh) * (Wpp*cap + Wm0*cam)
 
 		return cap, cam, R, T
@@ -401,13 +405,18 @@ module TMM
 		cbp = cb[1:2,1:2]
 		cbm = cb[3:4,1:2]
 
-		R = inv(Wh) * (Wp0*cbp + Wm0*cbm - Wh*I)
+		R = inv(Wh) * (Wp0*cbp + Wm0*cbm - Wh*la.I)
 		T = inv(Wh) * (Wp0*cbp + Wmm*cbm)
 
 		return cbp, cbm, R, T
 	end
 
-	function get_scc_of_a_block(μ_0, ω, kx0, ky0, mur, epsr, impedance, zm, zp)
+	function get_scc_of_a_block(μ_0, ω, k0, θ, ϕ, mur, epsr, impedance, zm, zp)
+
+		# wave vector in free space.
+		kx0 = k0 * sin(θ) * cos(ϕ)
+		ky0 = k0 * sin(θ) * sin(ϕ)
+		kz0 = k0 * cos(θ)
 
 		eigvals, eigvecs = TMM.get_eigenvectors(k0, kx0, ky0, mur, epsr, impedance)
 		cap, cam, Ra, Ta = TMM.get_the_left_to_right_operators(μ_0, ω, kx0, ky0, kz0, eigvals, eigvecs, zm, zp)
@@ -431,7 +440,9 @@ module TMM
 
 	end
 
-	function get_scc_of_each_n_blocks(N, μ_0, ω, impedance, kx0, ky0, zs, murs, epsrs)
+	function get_scc_of_each_n_blocks(N, μ_0, ω, impedance, k0, θ, ϕ, zs, murs, epsrs)
+
+		@assert length(zs) == (length(murs)+1) == (length(epsrs)+1) "Please insert the "
 
 		# For each n blocks, get the S matrix and
 		# the Coupling coefficient matrices.
@@ -445,7 +456,7 @@ module TMM
 
 		for i in 1:N
 
-			S, Ca, Cb = get_scc_of_a_block(μ_0, ω, kx0, ky0, murs[i], epsrs[i], impedance, zs[i], zs[i+1])
+			S, Ca, Cb = get_scc_of_a_block(μ_0, ω, k0, θ, ϕ, murs[i], epsrs[i], impedance, zs[i], zs[i+1])
 
 			push!(Ss, S)
 			push!(Cas, Ca)
@@ -552,11 +563,11 @@ module TMM
 
 	"""
 	function redheffer_L_blocks(
-		m::Signed, 
+		m::Int,
 		Sl::Matrix{ComplexF64}, 
 		Sr::Matrix{ComplexF64}, 
-		Cals::Vector{Matrix{ComplexF64}},
-		Cbls::Vector{Matrix{ComplexF64}}
+		Cal::Matrix{ComplexF64},
+		Cbl::Matrix{ComplexF64}
 	)
 
 		Tl_LtoR = Sl[1:2, 1:2]
@@ -573,19 +584,15 @@ module TMM
 		R_RtoL_nnml = Rl_RtoL + Tl_RtoL*inv(la.I - Rr_RtoL*Rl_LtoR)*Rr_RtoL*Tl_LtoR
 		T_LtoR_nnml = Tr_LtoR * inv(la.I - Rl_LtoR*Rr_RtoL)*Tl_LtoR
 
-		# Obtain the coupling coefficient matrix operators of each block.
-		ca_nnmls_L = Matrix{ComplexF64}[]
-		cb_nnmls_L = Matrix{ComplexF64}[]
-
-		for k in 1:m+1
-
+		for m in 1:(m+1)
+			# Obtain the coupling coefficient matrix operators of each block.
 			ca_nnml_L = zeros(ComplexF64, 4, 2)
 			cb_nnml_L = zeros(ComplexF64, 4, 2)
 
-			calkp = Cals[k][1:2, :]
-			calkm = Cals[k][3:4, :]
-			cblkp = Cbls[k][1:2, :]
-			cblkm = Cbls[k][3:4, :]
+			calkp = Cal[1:2, :]
+			calkm = Cal[3:4, :]
+			cblkp = Cbl[1:2, :]
+			cblkm = Cbl[3:4, :]
 
 			cap = calkp + cblkp*inv(la.I - Rr_RtoL*Rl_LtoR)*Rr_RtoL*Tl_LtoR
 			cam = calkm + cblkm*inv(la.I - Rr_RtoL*Rl_LtoR)*Rr_RtoL*Tl_LtoR
@@ -596,20 +603,17 @@ module TMM
 			ca_nnml_L[3:4, :] = cam
 			cb_nnml_L[1:2, :] = cbp
 			cb_nnml_L[3:4, :] = cbm
-
-			push!(ca_nnmls_L, ca_nnml_L)
-			push!(cb_nnmls_L, cb_nnml_L)
 		end
-		
-		return R_RtoL_nnml, T_LtoR_nnml, ca_nnmls_L, cb_nnmls_L
+
+		return R_RtoL_nnml, T_LtoR_nnml, ca_nnml_L, cb_nnml_L
 	end
 
 	function redheffer_R_blocks(
-		l::Signed, 
+		l::Int,
 		Sl::Matrix{ComplexF64}, 
 		Sr::Matrix{ComplexF64}, 
-		Cars::Vector{Matrix{ComplexF64}}, 
-		Cbrs::Vector{Matrix{ComplexF64}}
+		Car::Matrix{ComplexF64}, 
+		Cbr::Matrix{ComplexF64}
 	)
 
 		Tl_LtoR = Sl[1:2, 1:2]
@@ -626,19 +630,15 @@ module TMM
 		R_LtoR_nnml = Rr_LtoR + Tr_LtoR*inv(la.I - Rl_LtoR*Rr_RtoL)*Rl_LtoR*Tr_RtoL
 		T_RtoL_nnml = Tl_RtoL * inv(la.I - Rr_RtoL*Rl_LtoR)*Tr_RtoL
 
-		# Obtain the coupling coefficient matrix operators of each block.
-		ca_nnmls_R = Vector{ComplexF64}[]
-		cb_nnmls_R = Vector{ComplexF64}[]
-
-		for k in 1:l
-
+		for l in 1:l
+			# Obtain the coupling coefficient matrix operators of each block.
 			ca_nnml_R = zeros(ComplexF64, 4, 2)
 			cb_nnml_R = zeros(ComplexF64, 4, 2)
 
-			carkp = Cars[k][1:2, :]
-			carkm = Cars[k][3:4, :]
-			cbrkp = Cbrs[k][1:2, :]
-			cbrkm = Cbrs[k][3:4, :]
+			carkp = Car[1:2, :]
+			carkm = Car[3:4, :]
+			cbrkp = Cbr[1:2, :]
+			cbrkm = Cbr[3:4, :]
 
 			cap = carkp * inv(la.I - Rl_LtoR*Rr_RtoL) * Tl_LtoR
 			cam = carkm * inv(la.I - Rl_LtoR*Rr_RtoL) * Tl_LtoR
@@ -650,11 +650,9 @@ module TMM
 			cb_nnml_R[1:2, :] = cbp
 			cb_nnml_R[3:4, :] = cbm
 
-			push!(ca_nnmls_R, ca_nnml_R)
-			push!(cb_nnmls_R, cb_nnml_R)
 		end
-		
-		return R_LtoR_nnml, T_RtoL_nnml, ca_nnmls_R, cb_nnmls_R
+
+		return R_LtoR_nnml, T_RtoL_nnml, ca_nnml_R, cb_nnml_R
 	end
 
 	"""
@@ -668,42 +666,68 @@ module TMM
 	# Examples
 	"""
 	function redheffer_n_blocks(
-		N, 
-		μ_0, 
-		ω, 
-		impedance,
-		kx0, 
-		ky0, 
-		zs,
-		murs, 
-		epsrs
+		N::Int,
+		μ_0::Real, 
+		ω::Real, 
+		impedance::Real,
+		k0::Real,
+		θ::Real, 
+		ϕ::Real,
+		zs::Vector,
+		murs::Vector, 
+		epsrs::Vector
 	)
 
-		Ss, Cas, Cbs = get_scc_of_each_n_blocks(N, μ_0, ω, impedance, kx0, ky0, zs, murs, epsrs)
+		# wave vector in free space.
+		kx0 = k0 * sin(θ) * cos(ϕ)
+		ky0 = k0 * sin(θ) * sin(ϕ)
+		kz0 = k0 * cos(θ)
+
+		Ss, Cas, Cbs = get_scc_of_each_n_blocks(N, μ_0, ω, impedance, k0, θ, ϕ, zs, murs, epsrs)
 
 		# The total number of the blocks.
 		N = length(Ss) # It should be noted that N = m + l + 1
 
 		if N == 1
-			newS, newCa, newCb = Ss[1], Cas[1], Cbs[1]
-		else
+			return Ss[1], Cas[1], Cbs[1]
+		elseif N == 2
+			S12, Ca12, Cb12 = redheffer_two_blocks(Ss[1], Ss[2], Cas[1], Cbs[1], Cas[2], Cbs[2])
+			return S12, Ca12, Cb12
+		elseif N > 2
 			# For more than one block, let us consider the left and right portion of the blocks.
-			m = 0
-			l = 1
+			n = 1 # The index of the first slab on the left.
+			m = round(Int, N/2-1) # the number of the blocks on the left - 1.
+			l = N - m - 1 # the number of the blocks on the right.
 
-			newS = Ss[1]
-			newCa = Cas[1]
-			newCb = Cbs[1]
+			combinedSs = Vector{Matrix{ComplexF64}}()
+			combinedCas = Vector{Vector{Matrix{ComplexF64}}}() 
+			combinedCbs = Vector{Vector{Matrix{ComplexF64}}}() 
 
-			for i in 1:(N-l)
-				R_RtoL_nnml, T_LtoR_nnml, ca_nnmls_L, cb_nnmls_L = redheffer_L_blocks(m, newS, Ss[i+1], newCa, Cas[i+1])
-				R_LtoR_nnml, T_RtoL_nnml, ca_nnmls_R, cb_nnmls_R = redheffer_R_blocks(l, newS, Ss[i+1], newCb, Cbs[i+1])
+			S12, Ca12, Cb12 = redheffer_two_blocks(Ss[1], Ss[2], Cas[1], Cbs[1], Cas[2], Cbs[2])
 
-				newCa = [ca_nnmls_L; ca_nnmls_R]
-				newCb = [cb_nnmls_L; cb_nnmls_R]
+			push!(combinedSs, S12)   # Ss = [S^(1,1), S^(1,2), S^(1,3), ...]
+			push!(combinedCas, Ca12) # Cas = [Ca^(n,n+m+l)_(n,n), Ca^(n,n+m+l)_(1,2), ...]
+			push!(combinedCbs, Cb12) # Cbs = [Cb^(n,n+m+l)_(n,n), Cb^(n,n+m+l)_(1,2), ...]
 
-				@assert length(Ca) == N
-				@assert length(Cb) == N
+			for i in 3:N
+
+				newS = zeros(ComplexF64, 4, 4)
+
+				Tl_LtoR = combinedSs[end][1:2, 1:2]
+				Rl_LtoR = combinedSs[end][1:2, 3:4]
+				Rl_RtoL = combinedSs[end][3:4, 1:2]
+				Tl_RtoL = combinedSs[end][3:4, 3:4]
+
+				Tr_LtoR = Ss[i][1:2, 1:2]
+				Rr_LtoR = Ss[i][1:2, 3:4]
+				Rr_RtoL = Ss[i][3:4, 1:2]
+				Tr_RtoL = Ss[i][3:4, 3:4]
+
+				# Obtain the reflection and transmission coefficient matrix operators.
+				T_LtoR_nnml = Tr_LtoR * inv(la.I - Rl_LtoR*Rr_RtoL)*Tl_LtoR
+				T_RtoL_nnml = Tl_RtoL * inv(la.I - Rr_RtoL*Rl_LtoR)*Tr_RtoL
+				R_LtoR_nnml = Rr_LtoR + Tr_LtoR*inv(la.I - Rl_LtoR*Rr_RtoL)*Rl_LtoR*Tr_RtoL
+				R_RtoL_nnml = Rl_RtoL + Tl_RtoL*inv(la.I - Rr_RtoL*Rl_LtoR)*Rr_RtoL*Tl_LtoR
 
 				# Update the new scattering matrix.
 				newS[1:2, 1:2] = T_LtoR_nnml
@@ -711,12 +735,78 @@ module TMM
 				newS[3:4, 1:2] = R_RtoL_nnml
 				newS[3:4, 3:4] = T_RtoL_nnml
 
-				m += 1
+				push!(combinedSs, newS)
+
+				# R_RtoL_nnml, T_LtoR_nnml, ca_nnmls_L, cb_nnmls_L = redheffer_L_blocks(m, combinedSs[end], Ss[i+1], combinedCas[end], Cas[i+1])
+				# R_LtoR_nnml, T_RtoL_nnml, ca_nnmls_R, cb_nnmls_R = redheffer_R_blocks(l, combinedSs[end], Ss[i+1], combinedCbs[end], Cbs[i+1])
+
+				ca_nnml_LRs = Vector{Matrix{ComplexF64}}(undef, i)
+				cb_nnml_LRs = Vector{Matrix{ComplexF64}}(undef, i)
+
+				# Obtain the coupling coefficient matrices for the left blocks.
+				for k in 1:(i-1)
+
+					last_combinedCa = combinedCas[end]
+					last_combinedCb = combinedCbs[end]
+
+					calp = last_combinedCa[k][1:2, :]
+					calm = last_combinedCa[k][3:4, :]
+					cblp = last_combinedCb[k][1:2, :]
+					cblm = last_combinedCb[k][3:4, :]
+
+					cap = calp + cblp*inv(la.I - Rr_RtoL*Rl_LtoR)*Rr_RtoL*Tl_LtoR
+					cam = calm + cblm*inv(la.I - Rr_RtoL*Rl_LtoR)*Rr_RtoL*Tl_LtoR
+					cbp = cblp * inv(la.I - Rr_RtoL*Rl_LtoR)*Tr_RtoL
+					cbm = cblm * inv(la.I - Rr_RtoL*Rl_LtoR)*Tr_RtoL
+
+					newly_combinedCa_Ls = zeros(ComplexF64, 4, 2)
+					newly_combinedCb_Ls = zeros(ComplexF64, 4, 2)
+
+					newly_combinedCa_Ls[1:2, :] = cap
+					newly_combinedCa_Ls[3:4, :] = cam
+					newly_combinedCb_Ls[1:2, :] = cbp
+					newly_combinedCb_Ls[3:4, :] = cbm
+
+					ca_nnml_LRs[k] = newly_combinedCa_Ls
+					cb_nnml_LRs[k] = newly_combinedCb_Ls
+				end
+
+				# Obtain the coupling coefficient matrix for a right block.
+				newly_combinedCa_R = zeros(ComplexF64, 4, 2)
+				newly_combinedCb_R = zeros(ComplexF64, 4, 2)
+
+				ca_to_combine = Cas[i]
+				cb_to_combine = Cbs[i]
+
+				carp = ca_to_combine[1:2, :]
+				carm = ca_to_combine[3:4, :]
+				cbrp = cb_to_combine[1:2, :]
+				cbrm = cb_to_combine[3:4, :]
+
+				cap = carp * inv(la.I - Rl_LtoR*Rr_RtoL) * Tl_LtoR
+				cam = carm * inv(la.I - Rl_LtoR*Rr_RtoL) * Tl_LtoR
+				cbp = cbrp + carp * inv(la.I-Rl_LtoR*Rr_RtoL)*Rl_LtoR*Tr_RtoL
+				cbm = cbrm + carm * inv(la.I-Rl_LtoR*Rr_RtoL)*Rl_LtoR*Tr_RtoL
+
+				newly_combinedCa_R[1:2, :] = cap
+				newly_combinedCa_R[3:4, :] = cam
+				newly_combinedCb_R[1:2, :] = cbp
+				newly_combinedCb_R[3:4, :] = cbm
+
+				ca_nnml_LRs[i] = newly_combinedCa_R
+				cb_nnml_LRs[i] = newly_combinedCb_R
+
+				push!(combinedCas, ca_nnml_LRs)
+				push!(combinedCbs, cb_nnml_LRs)
 			end
 
-		end
+			# for i in (m+1):(n+m+l)
+			# end
 
-		return newS, newCa, newCb
+			return combinedSs[end], combinedCas[end], combinedCbs[end]
+		else
+			throw(DomainError(N, "negative N not allowed."))
+		end
 
 	end
 

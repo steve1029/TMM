@@ -15,9 +15,11 @@ gr()
 
 um = 1e-6
 nm = 1e-9
-λ = 300 * nm
-k0 = 2*π / λ # wavenumber in free space.
+λ0 = 300 * nm # wavelength in free space.
+k0 = 2*π / λ0 # wavenumber in free space.
 c = 299792458 # m/s.
+freq = c / λ0 # frequency
+ω = 2π * freq
 μ_0 = 4*π*10^-7
 ε_0 = 8.8541878128e-12
 
@@ -29,11 +31,6 @@ c = 299792458 # m/s.
 ϕ = 0
 # ϕ = π / 6
 
-# wave vector in free space.
-kx0 = k0 * sin(θ) * cos(ϕ)
-ky0 = k0 * sin(θ) * sin(ϕ)
-kz0 = k0 * cos(θ)
-
 dx = 10*nm
 dz = 10*nm
 
@@ -43,24 +40,25 @@ Lz = 2000*nm
 z1 =  500*nm
 z2 =  700*nm
 z3 = 1000*nm
-z4 - 1200*nm
+z4 = 1200*nm
 z5 = 1500*nm
 
+N = 4
 zs = [z1, z2, z3, z4, z5]
 murs = [1, 1, 1, 1]
-epsrs = [2.0^2, 1.2^2, 1.1^2, 1.7^2]
+epsrs = [1.3^2, 1.7^2, 1.5^2, 1.2^2]
 imp = sqrt(μ_0 /ε_0)
 input = [0., 1.] # [Eix, Eiy]
 
-N = 4
+Sn, Can, Cbn = redheffer_n_blocks(N, μ_0, ω, imp, k0, θ, ϕ, zs, murs, epsrs)
 
-Ss, Cas, Cbs = TMM.get_scc_of_each_n_blocks(N, μ_0, ω, kx0, ky0, murs, epsrs, imp)
+println(size(Sn))
+println(size(Can), typeof(Can))
+println(size(Cbn), typeof(Cbn))
+println(size(Can[1]))
+println(size(Can[2]))
 
-function redheffer(S1, S2, cap, cam, cbp, cbm)
-    
-    return 
-end
-
+"""
 # Get the S matrix of a left half-infinite block.
 eigvals0, eigvecs0 = TMM.get_eigenvectors(k0, kx0, ky0, mur, epsr, impedance)
 Wh, Vh = TMM._make_WhVh(μ_0, ω, kx0, ky0, kz0)
@@ -85,3 +83,4 @@ S00[3:4, 1:2] = R00_RtoL
 S00[3:4, 3:4] = T00_RtoL
 
 # Get the S matrix of a right half-infinite block.
+"""
