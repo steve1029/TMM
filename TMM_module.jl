@@ -101,7 +101,11 @@ module TMM
 	end
 
     # Obtain the eigen vectors and eigenvalues in a medium.
-	function get_eigenvectors(k0, kx0, ky0, mur, epsr, impedance)
+	function get_eigenvectors(k0, kx0, ky0, mur, epsr)
+
+		μ_0 = 4*π*10^-7
+		ε_0 = 8.8541878128e-12
+		impedance = sqrt(μ_0 /ε_0)
 
 		kx_bar = kx0 / k0 # it is equal to sin(θ) cos(ϕ)
 		ky_bar = ky0 / k0 # it is equal to sin(θ) sin(ϕ)
@@ -180,7 +184,9 @@ module TMM
 
     # Notes
 	"""
-	function _make_WhVh(μ_0, ω::Real, kx::Real, ky::Real, kz::Real)
+	function _make_WhVh(ω::Real, kx::Real, ky::Real, kz::Real)
+
+		μ_0 = 4*π*10^-7
 
 		Wh = la.I # The most Julianic way of expressing the identity matrix.
 		Vh = zeros(ComplexF64, 2, 2)
@@ -324,7 +330,6 @@ module TMM
 	end
 
 	function get_the_left_to_right_operators(
-		μ_0::Real,
 		ω::Number, 
 		kx0::Number, 
 		ky0::Number, 
@@ -335,7 +340,7 @@ module TMM
 		zp::Real
 		)
 		
-		Wh, Vh = _make_WhVh(μ_0, ω, kx0, ky0, kz0)
+		Wh, Vh = _make_WhVh(ω, kx0, ky0, kz0)
 		Wp0, Vp0 = _make_WpVp(eigvalues, eigvectors, 0.)
 		Wpp, Vpp = _make_WpVp(eigvalues, eigvectors, zp-zm)
 		Wm0, Vm0 = _make_WmVm(eigvalues, eigvectors, 0)
@@ -368,7 +373,6 @@ module TMM
 	end
 
 	function get_the_right_to_left_operators(
-		μ_0::Real,
 		ω::Number, 
 		kx0::Number, 
 		ky0::Number, 
@@ -379,7 +383,7 @@ module TMM
 		zp::Real
 		)
 		
-		Wh, Vh = _make_WhVh(μ_0, ω, kx0, ky0, kz0)
+		Wh, Vh = _make_WhVh(ω, kx0, ky0, kz0)
 		Wp0, Vp0 = _make_WpVp(eigvalues, eigvectors, 0.)
 		Wpp, Vpp = _make_WpVp(eigvalues, eigvectors, zp-zm)
 		Wm0, Vm0 = _make_WmVm(eigvalues, eigvectors, 0)
@@ -411,16 +415,28 @@ module TMM
 		return cbp, cbm, R, T
 	end
 
-	function get_scc_of_a_block(μ_0, ω, k0, θ, ϕ, mur, epsr, impedance, zm, zp)
+	"""
+		get_scc_of_a_block(ω, k, θ, ϕ, mur, epsr, zm, zp)
 
-		# wave vector in free space.
+	Obtain the scattering matrix and the coupling coefficient matrix operators
+	of a single block that is surrounded by the free space.
+	
+	# Arguments
+
+	"""
+	function get_scc_of_a_block(ω, k0, θ, ϕ, mur, epsr, zm, zp)
+
+		μ_0 = 4*π*10^-7
+		impedance = sqrt(μ_0 /ε_0)
+
+		# wave vector in a medium.
 		kx0 = k0 * sin(θ) * cos(ϕ)
 		ky0 = k0 * sin(θ) * sin(ϕ)
 		kz0 = k0 * cos(θ)
 
-		eigvals, eigvecs = TMM.get_eigenvectors(k0, kx0, ky0, mur, epsr, impedance)
-		cap, cam, Ra, Ta = TMM.get_the_left_to_right_operators(μ_0, ω, kx0, ky0, kz0, eigvals, eigvecs, zm, zp)
-		cbp, cbm, Rb, Tb = TMM.get_the_right_to_left_operators(μ_0, ω, kx0, ky0, kz0, eigvals, eigvecs, zm, zp)
+		eigvals, eigvecs = TMM.get_eigenvectors(k0, kx0, ky0, mur, epsr)
+		cap, cam, Ra, Ta = TMM.get_the_left_to_right_operators(ω, kx0, ky0, kz0, eigvals, eigvecs, zm, zp)
+		cbp, cbm, Rb, Tb = TMM.get_the_right_to_left_operators(ω, kx0, ky0, kz0, eigvals, eigvecs, zm, zp)
 
 		S = zeros(ComplexF64, 4, 4)
 		S[1:2, 1:2] = Ta
@@ -440,8 +456,11 @@ module TMM
 
 	end
 
-	function get_scc_of_each_n_blocks(N, μ_0, ω, impedance, k0, θ, ϕ, zs, murs, epsrs)
+	function get_scc_of_each_n_blocks(N, ω, k0, θ, ϕ, zs, murs, epsrs)
 
+		μ_0 = 4*π*10^-7
+		ε_0 = 8.8541878128e-12
+		impedance = sqrt(μ_0 /ε_0)
 		@assert length(zs) == (length(murs)+1) == (length(epsrs)+1) "Please insert the "
 
 		# For each n blocks, get the S matrix and
@@ -456,7 +475,7 @@ module TMM
 
 		for i in 1:N
 
-			S, Ca, Cb = get_scc_of_a_block(μ_0, ω, k0, θ, ϕ, murs[i], epsrs[i], impedance, zs[i], zs[i+1])
+			S, Ca, Cb = get_scc_of_a_block(ω, k0, θ, ϕ, murs[i], epsrs[i], zs[i], zs[i+1])
 
 			push!(Ss, S)
 			push!(Cas, Ca)
@@ -667,10 +686,7 @@ module TMM
 	"""
 	function redheffer_n_blocks(
 		N::Int,
-		μ_0::Real, 
 		ω::Real, 
-		impedance::Real,
-		k0::Real,
 		θ::Real, 
 		ϕ::Real,
 		zs::Vector,
@@ -678,12 +694,12 @@ module TMM
 		epsrs::Vector
 	)
 
-		# wave vector in free space.
-		kx0 = k0 * sin(θ) * cos(ϕ)
-		ky0 = k0 * sin(θ) * sin(ϕ)
-		kz0 = k0 * cos(θ)
+		c = 299792458 # m/s.
+		freq = ω / 2 / π
+		λ0 = c / freq # wavelength in free space.
+		k0 = 2 * π / λ0
 
-		Ss, Cas, Cbs = get_scc_of_each_n_blocks(N, μ_0, ω, impedance, k0, θ, ϕ, zs, murs, epsrs)
+		Ss, Cas, Cbs = get_scc_of_each_n_blocks(N, ω, k0, θ, ϕ, zs, murs, epsrs)
 
 		# The total number of the blocks.
 		N = length(Ss) # It should be noted that N = m + l + 1
@@ -807,6 +823,96 @@ module TMM
 		else
 			throw(DomainError(N, "negative N not allowed."))
 		end
+
+	end
+
+	"""
+		redheffer_lhi()
+	
+	Perform redheffer star product to obtain the scattering matrix and
+	the coupling coefficient matrix operators on the left half-infinite
+	block.
+
+	# Arguments
+	# Returns
+	# Examples
+	"""
+	function redheffer_lhi(ω, θ, ϕ, zm)
+
+		n_lhi = 1 # Note that we assumed the surrounding medium is vaccuum of air.
+		c = 299792458 # m/s.
+		freq = ω / 2 / π
+		λn = c / n_lhi / freq
+		k0 = 2 * π / λn
+
+		# wave vector in free space.
+		kx0 = k0 * sin(θ) * cos(ϕ)
+		ky0 = k0 * sin(θ) * sin(ϕ)
+		kz0 = k0 * cos(θ)
+
+		eigvals0, eigvecs0 = TMM.get_eigenvectors(k0, kx0, ky0, mur_lhi, epsr_lhi)
+		Wh, Vh = TMM._make_WhVh(ω, kx0, ky0, kz0)
+		Wp, Vp = TMM._make_WpVp(eigvals0, eigvecs0, zm)
+		Wm, Vm = TMM._make_WmVm(eigvals0, eigvecs0, zm)
+
+		A = inv(Wh)*Wm - inv(Vh)*Vm
+		B = inv(Wh)*Wp - inv(Vh)*Vp
+		C = inv(Wm)*Wh - inv(Vm)*Vh
+		D = inv(Wm)*Wp - inv(Vm)*Vp
+		E = inv(Wm)*Wh + inv(Vm)*Vh
+
+		R_RtoL =  -inv(A) * B 
+		T_LtoR =   inv(C) * D
+		T_RtoL = 2*inv(A)
+		R_LtoR =  -inv(C) * E
+
+		S = zeros(ComplexF64, 4, 4)
+		S[1:2, 1:2] = T_LtoR
+		S[1:2, 3:4] = R_LtoR
+		S[3:4, 1:2] = R_RtoL
+		S[3:4, 3:4] = T_RtoL
+
+		return S
+
+	end
+
+	function redheffer_rhi(ω, θ, ϕ, zp)
+		
+		n_rhi = 1 # Note that we assumed the surrounding medium is vaccuum of air.
+		c = 299792458 # m/s.
+		freq = ω / 2 / π
+		λn = c / n_rhi / freq
+		k0 = 2 * π / λn
+
+		# wave vector in free space.
+		kx0 = k0 * sin(θ) * cos(ϕ)
+		ky0 = k0 * sin(θ) * sin(ϕ)
+		kz0 = k0 * cos(θ)
+
+		eigvals0, eigvecs0 = TMM.get_eigenvectors(k0, kx0, ky0, 1, 1)
+		Wh, Vh = TMM._make_WhVh(ω, kx0, ky0, kz0)
+		Wp, Vp = TMM._make_WpVp(eigvals0, eigvecs0, zp)
+		Wm, Vm = TMM._make_WmVm(eigvals0, eigvecs0, zp)
+
+		A = inv(Wh)*Wp + inv(Vh)*Vp
+		B = inv(Wh)*Wh + inv(Vp)*Vh
+		C = inv(Wp)*Wh - inv(Vp)*Vh
+		D = inv(Wp)*Wh + inv(Vp)*Vh
+		E = inv(Wp)*Wm - inv(Vp)*Vm
+		F = inv(Wh)*Wm + inv(Vh)*Vm
+
+		T_LtoR = 2*inv(A)
+		R_RtoL =  -inv(B) * C 
+		T_RtoL =   inv(D) * E
+		R_LtoR =  -inv(A) * F
+
+		S = zeros(ComplexF64, 4, 4)
+		S[1:2, 1:2] = T_LtoR
+		S[1:2, 3:4] = R_LtoR
+		S[3:4, 1:2] = R_RtoL
+		S[3:4, 3:4] = T_RtoL
+
+		return S
 
 	end
 
