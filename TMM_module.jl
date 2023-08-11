@@ -1,8 +1,31 @@
 module TMM
 
 	# The following packages are required in this module.
-	# using LinearAlgebra
+	using Pkg
+
+	#Pkg.add("Plots")
+	#Pkg.add("NPZ")
+	#Pkg.add("LinearAlgebra")
+	#Pkg.add("Distributions")
+	#Pkg.add("PythonPlot") # Due to the SSL certificate issue, it cannot be used in LG INNOTEK.
+	#Pkg.add("PlotlyJS")
+	#Pkg.add("PlotlyBase")
+	#Pkg.add("UnicodePlots")
+
+	using Base
+	using Distributions
+	using LinearAlgebra
+	using NPZ
+	using Printf
+	using Plots
+
 	import LinearAlgebra as la
+
+	# Choose the backends of the Plots package.
+	gr()
+	# pythonplot()
+	# plotlyjs()
+	# unicodeplots()
 
 	export _get_Amatrix, _get_Bmatrix
 	export _get_HxHy, _get_Ez, _get_Hz 
@@ -1615,9 +1638,6 @@ module TMM
 		Cb0n = Vector{Matrix{ComplexF64}}(undef, N)
 		Ca0n1 = Vector{Matrix{ComplexF64}}(undef, N)
 		Cb0n1 = Vector{Matrix{ComplexF64}}(undef, N)
-
-		println(size(Ca0n))
-		println(typeof(Ca0n))
 
 		for k in 1:N
 			# combine the left half infinite block.

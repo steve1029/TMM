@@ -42,18 +42,16 @@ z2 =  700*nm
 z3 = 1000*nm
 z4 = 1200*nm
 z5 = 1500*nm
+z6 = 1500*nm
 
-zs = [z1, z2, z3, z4, z5]
-murs = [1, 1, 1, 1]
-epsrs = [1.3^2, 1.7^2, 1.5^2, 1.2^2]
+zs = [z1, z2, z3, z4, z5, z6]
+murs = [1, 1, 1, 1, 1]
+epsrs = [1.3^2, 1.7^2, 1.5^2, 1.2^2, 1.3^2]
 input = [0., 1.] # [Eix, Eiy]
 
 # Sn, Can, Cbn = redheffer_n_blocks(ω, θ, ϕ, zs, murs, epsrs)
 
 S, Ca, Cb = redheffer_combine_all_blocks(ω, θ, ϕ, zs, murs, epsrs)
 
-# println(size(S))
-# println(size(Ca), typeof(Ca))
-# println(size(Cb), typeof(Cb))
-# println(size(Ca[1]))
-# println(size(Ca[2]))
+println(size(Ca))
+println(typeof(Ca))

@@ -1,29 +1,5 @@
 include("./TMM_module.jl")
-
-using Pkg
-
-#Pkg.add("Plots")
-#Pkg.add("NPZ")
-#Pkg.add("LinearAlgebra")
-#Pkg.add("Distributions")
-#Pkg.add("PythonPlot") # Due to the SSL certificate issue, it cannot be used in LG INNOTEK.
-#Pkg.add("PlotlyJS")
-#Pkg.add("PlotlyBase")
-#Pkg.add("UnicodePlots")
-
-using Base
-using Distributions
-using LinearAlgebra
-using NPZ
-using Printf
-using Plots
-using .TMM
-
-# Choose the backends of the Plots package.
-gr()
-# pythonplot()
-# plotlyjs()
-# unicodeplots()
+import .TMM
 
 um = 1e-6
 nm = 1e-9
@@ -55,5 +31,5 @@ S = zeros(ComplexF64, 4, 4)
 # S[3:4, 3:4] = T2
 
 input = [0., 1.] # [Eix, Eiy]
-eigvectors, coeff = left_to_right_field_visualization(dx, dz, Lx, Lz, λ, θ, ϕ, mur, epsr, zm, zp, input)
-eigvectors, coeff = right_to_left_field_visualization(dx, dz, Lx, Lz, λ, θ, ϕ, mur, epsr, zm, zp, input)
+eigvectors, coeff = TMM.left_to_right_field_visualization(dx, dz, Lx, Lz, λ, θ, ϕ, mur, epsr, zm, zp, input)
+eigvectors, coeff = TMM.right_to_left_field_visualization(dx, dz, Lx, Lz, λ, θ, ϕ, mur, epsr, zm, zp, input)
