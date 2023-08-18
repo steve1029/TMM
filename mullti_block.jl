@@ -51,7 +51,6 @@ input = [0., 1.] # [Eix, Eiy]
 
 # Sn, Can, Cbn = redheffer_n_blocks(ω, θ, ϕ, zs, murs, epsrs)
 
-S, Ca, Cb = redheffer_combine_all_blocks(ω, θ, ϕ, zs, murs, epsrs)
+# S, Ca, Cb, eigvalsn, eigvecsn = redheffer_combine_all_blocks(ω, θ, ϕ, zs, murs, epsrs)
 
-println(size(Ca))
-println(typeof(Ca))
+multiblock_visualization_left_to_right(input, dx, dz, Lx, Lz, λ0, θ, ϕ, zs, murs, epsrs)

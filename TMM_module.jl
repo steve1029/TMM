@@ -41,6 +41,7 @@ module TMM
 	export redheffer_n_blocks
 	export redheffer_two_blocks
 	export redheffer_combine_all_blocks
+	export multiblock_visualization_left_to_right
 
     # Calculate corresponding Ez, Hx, Hy and Hz for the given Ex and Ey.
 	function _get_Amatrix(
@@ -1077,6 +1078,11 @@ module TMM
 	# Arguments
 
 	# Returns
+	- 'S::Matrix{ComplexF64}'
+	- 'Ca::Matrix{ComplexF64}'
+	- 'Cb::Matrix{ComplexF64}'
+	- 'eigvals::Vector{ComplexF64}'
+	- 'eigvecs::Matrix{ComplexF64}'
 
 	# Examples
 	"""
@@ -1092,6 +1098,7 @@ module TMM
 		cbp, cbm, Rb, Tb = TMM.get_the_right_to_left_operators(ω, kx0, ky0, kz0, eigvals, eigvecs, zm, zp)
 
 		S = zeros(ComplexF64, 4, 4)
+
 		S[1:2, 1:2] = Ta
 		S[1:2, 3:4] = Ra
 		S[3:4, 1:2] = Rb
@@ -1105,10 +1112,28 @@ module TMM
 		Cb[1:2, :] = cbp
 		Cb[3:4, :] = cbm
 
-		return S, Ca, Cb
+		return S, Ca, Cb, eigvals, eigvecs
 
 	end
 
+	"""
+		get_scc_of_each_n_blocks(N, ω, k0, θ, ϕ, zs, murs, epsrs)
+
+	Obtain the scattering matrix and the coupling coefficient 
+	matrices for N blocks.
+
+	# Arguments
+
+	# Returns
+	- 'Ss::Vector{Matrix{ComplexF64}}'
+	- 'Cas::Vector{Matrix{ComplexF64}}'
+	- 'Cbs::Vector{Matrix{ComplexF64}}'
+	- 'eigvals_nblock::Vector{Vector{ComplexF64}}'
+	- 'eigvecs_nblock::Vector{Matrix{ComplexF64}}'
+
+	# Examples
+
+	"""
 	function get_scc_of_each_n_blocks(N, ω, k0, θ, ϕ, zs, murs, epsrs)
 
 		@assert length(zs) == (length(murs)+1) == (length(epsrs)+1) "Please insert the "
@@ -1118,25 +1143,23 @@ module TMM
 		Ss = Matrix{ComplexF64}[]
 		Cas = Matrix{ComplexF64}[]
 		Cbs = Matrix{ComplexF64}[]
-		# Ras = Matrix{Float64}[]
-		# Rbs = Matrix{Float64}[]
-		# Tas = Matrix{Float64}[]
-		# Tbs = Matrix{Float64}[]
+
+		eigvals_nblock = Vector{ComplexF64}[]
+		eigvecs_nblock = Matrix{ComplexF64}[]
 
 		for i in 1:N
 
-			S, Ca, Cb = get_scc_of_a_block(ω, k0, θ, ϕ, murs[i], epsrs[i], zs[i], zs[i+1])
+			S, Ca, Cb, eigvals, eigvecs = get_scc_of_a_block(ω, k0, θ, ϕ, murs[i], epsrs[i], zs[i], zs[i+1])
 
 			push!(Ss, S)
 			push!(Cas, Ca)
 			push!(Cbs, Cb)
-			# push!(Tas, Ta)
-			# push!(Ras, Ra)
-			# push!(Rbs, Rb)
-			# push!(Tbs, Tb)
+			push!(eigvals_nblock, eigvals)
+			push!(eigvecs_nblock, eigvecs)
+
 		end
 
-		return Ss, Cas, Cbs
+		return Ss, Cas, Cbs, eigvals_nblock, eigvecs_nblock
 
 	end
 
@@ -1152,10 +1175,13 @@ module TMM
 		R22_RtoL = S2[3:4, 1:2]
 		T22_RtoL = S2[3:4, 3:4]
 
-		R12_RtoL = R11_RtoL + T11_RtoL * inv(la.I - R22_RtoL*R11_LtoR) * R22_RtoL * T11_LtoR
-		T12_LtoR = T22_LtoR * inv(la.I - R11_LtoR * R22_RtoL) * T11_LtoR
-		R12_LtoR = R22_LtoR + T22_LtoR * inv(la.I - R11_LtoR*R22_RtoL) * R11_LtoR * T22_RtoL
-		T12_RtoL = T11_RtoL * inv(la.I - R22_RtoL * R11_LtoR) * T22_RtoL
+		D = T22_LtoR * inv(la.I - R11_LtoR * R22_RtoL)
+		F = T11_RtoL * inv(la.I - R22_RtoL*R11_LtoR)
+
+		T12_LtoR = D * T11_LtoR
+		R12_LtoR = R22_LtoR + D * R11_LtoR * T22_RtoL
+		R12_RtoL = R11_RtoL + F * R22_RtoL * T11_LtoR
+		T12_RtoL = F * T22_RtoL
 
 		S12 = zeros(ComplexF64, 4, 4)
 		S12[1:2, 1:2] = T12_LtoR
@@ -1227,7 +1253,15 @@ module TMM
 	end
 
 	"""
-		redheffer_left_blocks(m, l, Sl, Sr, Cals, Cbls, Cars, Cbrs)
+    redheffer_L_blocks(
+		m::Int,
+		Sl::Matrix{ComplexF64}, 
+		Sr::Matrix{ComplexF64}, 
+		Cal::Matrix{ComplexF64},
+		Cbl::Matrix{ComplexF64}
+	)
+
+	redheffer_left_blocks(m, l, Sl, Sr, Cals, Cbls, Cars, Cbrs)
 
 	Obtain the scattering matrix and the coupling coefficient matrices
 	of the new blocks using the previous partial blocks.
@@ -1235,14 +1269,14 @@ module TMM
 	in the name of the variable and the one the right will be 'r'.
 
 	# Arguments
-	- 'm':
-	- 'l':
-	- 'Sl':
-	- 'Sr':
-	- 'Cals':
-	- 'Cbls':
-	- 'Cars':
-	- 'Cbrs':
+	- 'm::Integer':
+	- 'l::Integer':
+	- 'Sl::Matrix{ComplexF64}':
+	- 'Sr::Matrix{ComplexF64}':
+	- 'Cals::Vector{Matrix{ComplexF64}}':
+	- 'Cbls::Vector{Matrix{ComplexF64}}':
+	- 'Cars::Vector{Matrix{ComplexF64}}':
+	- 'Cbrs::Vector{Matrix{ComplexF64}}':
 
 	# Returns
 
@@ -1370,13 +1404,17 @@ module TMM
 		N = length(murs) # It should be noted that N = m + l + 1
 		@assert N == length(epsrs) "The length of mur and epsr are not the same."
 
-		Ss, Cas, Cbs = get_scc_of_each_n_blocks(N, ω, k0, θ, ϕ, zs, murs, epsrs)
+		Ss, Cas, Cbs, eigvals_nblock, eigvecs_nblocks = get_scc_of_each_n_blocks(N, ω, k0, θ, ϕ, zs, murs, epsrs)
 
 		if N == 1
 			return Ss[1], Cas[1], Cbs[1]
+
 		elseif N == 2
+
 			S12, Ca12, Cb12 = redheffer_two_blocks(Ss[1], Ss[2], Cas[1], Cbs[1], Cas[2], Cbs[2])
+
 			return S12, Ca12, Cb12
+
 		elseif N > 2
 			# For more than one block, let us consider the left and right portion of the blocks.
 			n = 1 # The index of the first slab on the left.
@@ -1487,7 +1525,7 @@ module TMM
 			# for i in (m+1):(n+m+l)
 			# end
 
-			return combinedSs[end], combinedCas[end], combinedCbs[end]
+			return combinedSs[end], combinedCas[end], combinedCbs[end], eigvals_nblock, eigvecs_nblocks
 		else
 			throw(DomainError(N, "negative N not allowed."))
 		end
@@ -1531,10 +1569,10 @@ module TMM
 		D = inv(Wm)*Wp - inv(Vm)*Vp
 		E = inv(Wm)*Wh + inv(Vm)*Vh
 
-		R_RtoL =  -inv(A) * B 
 		T_LtoR =   inv(C) * D
-		T_RtoL = 2*inv(A)
 		R_LtoR =  -inv(C) * E
+		R_RtoL =  -inv(A) * B 
+		T_RtoL = 2*inv(A)
 
 		S = zeros(ComplexF64, 4, 4)
 		S[1:2, 1:2] = T_LtoR
@@ -1604,13 +1642,7 @@ module TMM
 		Rn1n1_RtoL = Srhi[3:4, 1:2]
 		Tn1n1_RtoL = Srhi[3:4, 3:4]
 
-		S1n, Ca1n, Cb1n = redheffer_n_blocks(ω, θ, ϕ, zs, murs, epsrs)
-
-		# println(size(S1n))
-		# println(size(Ca1n))
-		# println(size(Cb1n))
-		# println(size(Ca1n[1]))
-		# println(size(Cb1n[2]))
+		S1n, Ca1n, Cb1n, eigvalsn, eigvecsn = redheffer_n_blocks(ω, θ, ϕ, zs, murs, epsrs)
 
 		T1n_LtoR = S1n[1:2, 1:2]
 		R1n_LtoR = S1n[1:2, 3:4]
@@ -1619,8 +1651,6 @@ module TMM
 
 		S0n = redheffer(Slhi, S1n)
 		S0n1 = redheffer(S0n, Srhi)
-
-		# println(size(S0n1))
 
 		T0n_LtoR = S0n[1:2, 1:2]
 		R0n_LtoR = S0n[1:2, 3:4]
@@ -1650,8 +1680,98 @@ module TMM
 
 		end
 
-		return S0n1, Ca0n1, Cb0n1
+		return S0n1, Ca0n1, Cb0n1, S1n, Ca1n, Cb1n, eigvalsn, eigvecsn
 
 	end
 
+	function multiblock_visualization_left_to_right(
+		input::AbstractVector,
+		dx::Real,
+		dz::Real,
+		Lx::Real,
+		Lz::Real,
+		λ0::Real,
+		θ::Real,
+		ϕ::Real,
+		zs::AbstractVector,
+		murs::AbstractVector,
+		epsrs::AbstractVector
+	)
+
+		@assert length(murs) == length(epsrs)
+		@assert (length(murs) + 1) == length(zs)
+
+		c = 299792458 # m/s.
+		k0 = 2*π / λ0 # wavenumber in free space.
+		ω = c*k0
+		μ_0 = 4*π*10^-7
+		ε_0 = 8.8541878128e-12
+		impedance = sqrt(μ_0 /ε_0)
+
+		# wave vector in free space.
+		kx0 = k0 * sin(θ) * cos(ϕ)
+		ky0 = k0 * sin(θ) * sin(ϕ)
+		kz0 = k0 * cos(θ)
+
+		x = 0:dx:Lx # UnitRange object.
+		y = 0
+		z = 0:dz:Lz # UnitRange object.
+
+		S0n1, Ca0n1, Cb0n1, S1n, Ca1n, Cb1n, neigvals, neigvecs = redheffer_combine_all_blocks(ω, θ, ϕ, zs, murs, epsrs)
+
+		T_LtoR = S0n1[1:2, 1:2]
+		R_LtoR = S0n1[1:2, 3:4]
+		T_RtoL = S0n1[3:4, 1:2]
+		R_RtoL = S0n1[3:4, 3:4]
+
+		Eix = input[1]
+		Eiy = input[2]
+		Eiz = (kx0*Eix + ky0*Eiy) / kz0
+		Hix = (ky0*Eiz + kz0*Eiy) / ω / μ_0 # Not H_bar field.
+		Hiy =-(kz0*Eix + kx0*Eiz) / ω / μ_0
+		Hiz = (ky0*Eix + kx0*Eiy) / ω / μ_0
+
+		Erx = dot(R_RtoL[2,:], [Eiy, Eix])
+		Ery = dot(R_RtoL[1,:], [Eiy, Eix])
+		Erz =-(kx0*Erx + ky0*Ery) / kz0
+		Hrx = (ky0*Erz - kz0*Ery) / ω / μ_0
+		Hry = (kz0*Erx - kx0*Erz) / ω / μ_0
+		Hrz = (ky0*Erx + kx0*Ery) / ω / μ_0
+
+		Etx = dot(T_LtoR[2,:], [Eiy, Eix])
+		Ety = dot(T_LtoR[1,:], [Eiy, Eix])
+		Etz =-(kx0*Etx + ky0*Ety) / kz0
+		Htx = (ky0*Etz + kz0*Ety) / ω / μ_0
+		Hty =-(kz0*Etx + kx0*Etz) / ω / μ_0
+		Htz = (ky0*Etx + kx0*Ety) / ω / μ_0
+
+		N = length(murs)
+
+		for i in 1:N
+
+			n = sqrt(murs[i]*epsrs[i])
+			eigvalues = neigvals[i]
+			eigvectors = neigvecs[i]
+
+			kzTEp = eigvalues[1]
+			kzTEm = eigvalues[2]
+			kzTMp = eigvalues[3]
+			kzTMm = eigvalues[4]
+
+			eigTEp = eigvectors[:,1]
+			eigTEm = eigvectors[:,2]
+			eigTMp = eigvectors[:,3]
+			eigTMm = eigvectors[:,4]
+
+			Ca = Ca0n1[i]
+			Cb = Cb0n1[i]
+
+		end
+
+		return nothing
+
+	end
+
+	function check_energy_conservation(kz0, kzn1)
+	end
 end # end of a module.
