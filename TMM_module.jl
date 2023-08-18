@@ -14,7 +14,6 @@ module TMM
 
 	using Base
 	using Distributions
-	using LinearAlgebra
 	using NPZ
 	using Printf
 	using Plots
@@ -1637,10 +1636,18 @@ module TMM
 		R00_RtoL = Slhi[3:4, 1:2]
 		T00_RtoL = Slhi[3:4, 3:4]
 
+		# println(T00_LtoR)
+		# println(conj(T00_LtoR))
+		# println(T00_LtoR * conj(T00_LtoR))
+
 		Tn1n1_LtoR = Srhi[1:2, 1:2]
 		Rn1n1_LtoR = Srhi[1:2, 3:4]
 		Rn1n1_RtoL = Srhi[3:4, 1:2]
 		Tn1n1_RtoL = Srhi[3:4, 3:4]
+
+		# println(Tn1n1_LtoR)
+		# println(conj(Tn1n1_LtoR))
+		# println(Tn1n1_LtoR * conj(Tn1n1_LtoR))
 
 		S1n, Ca1n, Cb1n, eigvalsn, eigvecsn = redheffer_n_blocks(ω, θ, ϕ, zs, murs, epsrs)
 
@@ -1712,6 +1719,8 @@ module TMM
 		kx0 = k0 * sin(θ) * cos(ϕ)
 		ky0 = k0 * sin(θ) * sin(ϕ)
 		kz0 = k0 * cos(θ)
+		kx_bar = kx0 / k0
+		ky_bar = ky0 / k0
 
 		x = 0:dx:Lx # UnitRange object.
 		y = 0
@@ -1758,6 +1767,19 @@ module TMM
 			kzTMp = eigvalues[3]
 			kzTMm = eigvalues[4]
 
+			kzTEp_bar = kzTEp / k0
+			kzTEm_bar = kzTEm / k0
+			kzTMp_bar = kzTMp / k0
+			kzTMm_bar = kzTMm / k0
+
+			norm_mag = sqrt(kx_bar^2 + ky_bar^2 + kzTEp_bar^2)
+
+			@printf("normalized kz of TEp in a block: %.3f\n", kzTEp_bar)
+			@printf("normalized kz of TEm in a block: %.3f\n", kzTEm_bar)
+			@printf("normalized kz of TMp in a block: %.3f\n", kzTMp_bar)
+			@printf("normalized kz of TMm in a block: %.3f\n", kzTMm_bar)
+			@printf("normalized magnitude of the wavevector in a block: %.3f\n", norm_mag)
+
 			eigTEp = eigvectors[:,1]
 			eigTEm = eigvectors[:,2]
 			eigTMp = eigvectors[:,3]
@@ -1765,6 +1787,16 @@ module TMM
 
 			Ca = Ca0n1[i]
 			Cb = Cb0n1[i]
+
+			cap =  Ca[1:2, :]
+			cam =  Ca[3:4, :]
+			cbp =  Cb[1:2, :]
+			cbm =  Cb[3:4, :]
+
+			caTEp = cap[1,:]' * [Eiy, Eix] # The coupling coefficient for left-to-right, TE mode.
+			caTMp = cap[2,:]' * [Eiy, Eix] # The coupling coefficient for left-to-right, TM mode.
+			caTEm = cam[1,:]' * [Eiy, Eix] # The coupling coefficient for right-to-left, TE mode.
+			caTMm = cam[2,:]' * [Eiy, Eix] # The coupling coefficient for right-to-left, TM mode.
 
 		end
 

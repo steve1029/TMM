@@ -46,7 +46,7 @@ z6 = 1500*nm
 
 zs = [z1, z2, z3, z4, z5, z6]
 murs = [1, 1, 1, 1, 1]
-epsrs = [1.3^2, 1.7^2, 1.5^2, 1.2^2, 1.3^2]
+epsrs = [1.3^2, 1.4^2, 1.35^2, 1.2^2, 1.25^2]
 input = [0., 1.] # [Eix, Eiy]
 
 # Sn, Can, Cbn = redheffer_n_blocks(ω, θ, ϕ, zs, murs, epsrs)
