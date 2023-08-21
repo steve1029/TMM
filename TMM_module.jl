@@ -779,7 +779,7 @@ module TMM
 		savefig("LtoR_tot.png")
 		# plot(ps..., layout=l, plot_title="trs", size=(1200, 1000), yformatter=:scientific)
 		
-	return eigvectors, coeff
+		return eigvectors, coeff
 	end
 
 	function right_to_left_field_visualization(dx, dz, Lx, Lz, λ, θ, ϕ, mur, epsr, zm, zp, input::AbstractVector)
@@ -1756,7 +1756,83 @@ module TMM
 
 		N = length(murs)
 
+		Ex_LtoR = zeros(ComplexF64, length(x), length(z))
+		Ey_LtoR = zeros(ComplexF64, length(x), length(z))
+		Ez_LtoR = zeros(ComplexF64, length(x), length(z))
+		Hx_LtoR = zeros(ComplexF64, length(x), length(z))
+		Hy_LtoR = zeros(ComplexF64, length(x), length(z))
+		Hz_LtoR = zeros(ComplexF64, length(x), length(z))
+
+		Ex_RtoL = zeros(ComplexF64, length(x), length(z))
+		Ey_RtoL = zeros(ComplexF64, length(x), length(z))
+		Ez_RtoL = zeros(ComplexF64, length(x), length(z))
+		Hx_RtoL = zeros(ComplexF64, length(x), length(z))
+		Hy_RtoL = zeros(ComplexF64, length(x), length(z))
+		Hz_RtoL = zeros(ComplexF64, length(x), length(z))
+
+		Ex_TEp = zeros(ComplexF64, length(x), length(z))
+		Ey_TEp = zeros(ComplexF64, length(x), length(z))
+		Ez_TEp = zeros(ComplexF64, length(x), length(z))
+		Hx_TEp = zeros(ComplexF64, length(x), length(z))
+		Hy_TEp = zeros(ComplexF64, length(x), length(z))
+		Hz_TEp = zeros(ComplexF64, length(x), length(z))
+
+		Ex_TMp = zeros(ComplexF64, length(x), length(z))
+		Ey_TMp = zeros(ComplexF64, length(x), length(z))
+		Ez_TMp = zeros(ComplexF64, length(x), length(z))
+		Hx_TMp = zeros(ComplexF64, length(x), length(z))
+		Hy_TMp = zeros(ComplexF64, length(x), length(z))
+		Hz_TMp = zeros(ComplexF64, length(x), length(z))
+
+		Ex_TEm = zeros(ComplexF64, length(x), length(z))
+		Ey_TEm = zeros(ComplexF64, length(x), length(z))
+		Ez_TEm = zeros(ComplexF64, length(x), length(z))
+		Hx_TEm = zeros(ComplexF64, length(x), length(z))
+		Hy_TEm = zeros(ComplexF64, length(x), length(z))
+		Hz_TEm = zeros(ComplexF64, length(x), length(z))
+
+		Ex_TMm = zeros(ComplexF64, length(x), length(z))
+		Ey_TMm = zeros(ComplexF64, length(x), length(z))
+		Ez_TMm = zeros(ComplexF64, length(x), length(z))
+		Hx_TMm = zeros(ComplexF64, length(x), length(z))
+		Hy_TMm = zeros(ComplexF64, length(x), length(z))
+		Hz_TMm = zeros(ComplexF64, length(x), length(z))
+
+		# Define the half-infinite blocks.
+		lhi = (z .< zs[1])
+		rhi = (zs[N] .<= z)
+
+		# For the left half-infinite block,
+		phase_inc = ((kx0.*x) .+ (ky0.*y) .+ (kz0.*(z' .- zm)))[:,lhi]
+		phase_ref = ((kx0.*x) .+ (ky0.*y) .- (kz0.*(z' .- zm)))[:,lhi]
+
+		Ex_LtoR[:,lhi] = (Eix .* exp.(1im .* phase_inc))
+		Ey_LtoR[:,lhi] = (Eiy .* exp.(1im .* phase_inc))
+		Ez_LtoR[:,lhi] = (Eiz .* exp.(1im .* phase_inc))
+		Hx_LtoR[:,lhi] = (Hix .* exp.(1im .* phase_inc))
+		Hy_LtoR[:,lhi] = (Hiy .* exp.(1im .* phase_inc))
+		Hz_LtoR[:,lhi] = (Hiz .* exp.(1im .* phase_inc))
+
+		Ex_RtoL[:,lhi] = (Erx .* exp.(1im .* phase_ref))
+		Ey_RtoL[:,lhi] = (Ery .* exp.(1im .* phase_ref))
+		Ez_RtoL[:,lhi] = (Erz .* exp.(1im .* phase_ref))
+		Hx_RtoL[:,lhi] = (Hrx .* exp.(1im .* phase_ref))
+		Hy_RtoL[:,lhi] = (Hry .* exp.(1im .* phase_ref))
+		Hz_RtoL[:,lhi] = (Hrz .* exp.(1im .* phase_ref))
+
+		# For the right half-infinite block,
+		phase_trs = ((kx0.*x) .+ (ky0.*y) .+ (kz0.*(z' .- zp)))[:,rhi]
+
+		Ex_LtoR[:,rhi] = (Etx .* exp.(1im .* phase_trs))
+		Ey_LtoR[:,rhi] = (Ety .* exp.(1im .* phase_trs))
+		Ez_LtoR[:,rhi] = (Etz .* exp.(1im .* phase_trs))
+		Hx_LtoR[:,rhi] = (Htx .* exp.(1im .* phase_trs))
+		Hy_LtoR[:,rhi] = (Hty .* exp.(1im .* phase_trs))
+		Hz_LtoR[:,rhi] = (Htz .* exp.(1im .* phase_trs))
+
 		for i in 1:N
+
+			block = (zs[i] .<= z < zs[i+1])
 
 			n = sqrt(murs[i]*epsrs[i])
 			eigvalues = neigvals[i]
@@ -1788,6 +1864,9 @@ module TMM
 			Ca = Ca0n1[i]
 			Cb = Cb0n1[i]
 
+			# Ca = Ca1n[i]
+			# Cb = Cb1n[i]
+
 			cap =  Ca[1:2, :]
 			cam =  Ca[3:4, :]
 			cbp =  Cb[1:2, :]
@@ -1798,8 +1877,128 @@ module TMM
 			caTEm = cam[1,:]' * [Eiy, Eix] # The coupling coefficient for right-to-left, TE mode.
 			caTMm = cam[2,:]' * [Eiy, Eix] # The coupling coefficient for right-to-left, TM mode.
 
+			# Define the phase.
+			phase_TEp = ((kx0.*x) .+ (ky0.*y) .+ (kzTEp.*(z' .- zs[i  ])))[:,block]
+			phase_TMp = ((kx0.*x) .+ (ky0.*y) .+ (kzTMp.*(z' .- zs[i  ])))[:,block]
+			phase_TEm = ((kx0.*x) .+ (ky0.*y) .+ (kzTEm.*(z' .- zs[i+1])))[:,block]
+			phase_TMm = ((kx0.*x) .+ (ky0.*y) .+ (kzTMm.*(z' .- zs[i+1])))[:,block]
+
+			Ex_TEp[:,block] = (caTEp .* (eigTEp[1] .* exp.(1im .* phase_TEp)))
+			Ex_TEm[:,block] = (caTEm .* (eigTEm[1] .* exp.(1im .* phase_TEm)))
+			Ex_TMp[:,block] = (caTMp .* (eigTMp[1] .* exp.(1im .* phase_TMp)))
+			Ex_TMm[:,block] = (caTMm .* (eigTMm[1] .* exp.(1im .* phase_TMm)))
+
+			Ey_TEp[:,block] = (caTEp .* (eigTEp[2] .* exp.(1im .* phase_TEp)))
+			Ey_TEm[:,block] = (caTEm .* (eigTEm[2] .* exp.(1im .* phase_TEm)))
+			Ey_TMp[:,block] = (caTMp .* (eigTMp[2] .* exp.(1im .* phase_TMp)))
+			Ey_TMm[:,block] = (caTMm .* (eigTMm[2] .* exp.(1im .* phase_TMm)))
+
+			Ez_TEp[:,block] = (caTEp .* (eigTEp[3] .* exp.(1im .* phase_TEp)))
+			Ez_TEm[:,block] = (caTEm .* (eigTEm[3] .* exp.(1im .* phase_TEm)))
+			Ez_TMp[:,block] = (caTMp .* (eigTMp[3] .* exp.(1im .* phase_TMp)))
+			Ez_TMm[:,block] = (caTMm .* (eigTMm[3] .* exp.(1im .* phase_TMm)))
+
+			Hx_TEp[:,block] = (caTEp .* (eigTEp[4] .* exp.(1im .* phase_TEp)))
+			Hx_TEm[:,block] = (caTEm .* (eigTEm[4] .* exp.(1im .* phase_TEm)))
+			Hx_TMp[:,block] = (caTMp .* (eigTMp[4] .* exp.(1im .* phase_TMp)))
+			Hx_TMm[:,block] = (caTMm .* (eigTMm[4] .* exp.(1im .* phase_TMm)))
+
+			Hy_TEp[:,block] = (caTEp .* (eigTEp[5] .* exp.(1im .* phase_TEp)))
+			Hy_TEm[:,block] = (caTEm .* (eigTEm[5] .* exp.(1im .* phase_TEm)))
+			Hy_TMp[:,block] = (caTMp .* (eigTMp[5] .* exp.(1im .* phase_TMp)))
+			Hy_TMm[:,block] = (caTMm .* (eigTMm[5] .* exp.(1im .* phase_TMm)))
+
+			Hz_TEp[:,block] = (caTEp .* (eigTEp[6] .* exp.(1im .* phase_TEp)))
+			Hz_TEm[:,block] = (caTEm .* (eigTEm[6] .* exp.(1im .* phase_TEm)))
+			Hz_TMp[:,block] = (caTMp .* (eigTMp[6] .* exp.(1im .* phase_TMp)))
+			Hz_TMm[:,block] = (caTMm .* (eigTMm[6] .* exp.(1im .* phase_TMm)))
+
 		end
 
+		Ex_LtoR += Ex_TEp + Ex_TMp
+		Ey_LtoR += Ey_TEp + Ey_TMp
+		Ez_LtoR += Ez_TEp + Ez_TMp
+		Hx_LtoR += Hx_TEp + Hx_TMp
+		Hy_LtoR += Hy_TEp + Hy_TMp
+		Hz_LtoR += Hz_TEp + Hz_TMp
+
+		Ex_RtoL += Ex_TEm + Ex_TMm
+		Ey_RtoL += Ey_TEm + Ey_TMm
+		Ez_RtoL += Ez_TEm + Ez_TMm
+		Hx_RtoL += Hx_TEm + Hx_TMm
+		Hy_RtoL += Hy_TEm + Hy_TMm
+		Hz_RtoL += Hz_TEm + Hz_TMm
+
+		Ex_tot = Ex_LtoR + Ex_RtoL
+		Ey_tot = Ey_LtoR + Ey_RtoL
+		Ez_tot = Ez_LtoR + Ez_RtoL
+		Hx_tot = Hx_LtoR + Hx_RtoL
+		Hy_tot = Hy_LtoR + Hy_RtoL
+		Hz_tot = Hz_LtoR + Hz_RtoL
+
+		LtoRs = cat(real(Ex_inc), real(Hx_inc), real(Ey_inc), real(Hy_inc), real(Ez_inc), real(Hz_inc), dims=3)
+		RtoLs = cat(real(Ex_ref), real(Hx_ref), real(Ey_ref), real(Hy_ref), real(Ez_ref), real(Hz_ref), dims=3)
+		tots  = cat(real(Ex_tot), real(Hx_tot), real(Ey_tot), real(Hy_tot), real(Ez_tot), real(Hz_tot), dims=3)
+
+		title=["Ex", "Hx", "Ey", "Hy", "Ez", "Hz"]
+		cmins = []
+		cmaxs = []
+
+		ps_LtoR = []
+		ps_RtoL = []
+		ps_tot = []
+		l = @layout([a d; b e; c f;])
+
+		for (i, slice) in enumerate(eachslice(LtoRs, dims=3))
+			name = title[i]*"_LtoR"
+			cmax = maximum(abs, slice)
+			if isapprox(cmax, 0; atol=1e-10)
+				p = heatmap(slice, title=name, c=:bwr, clims=(-1,1))
+			else
+				p = heatmap(slice, title=name, c=:bwr, clims=(-cmax, cmax))
+			end
+			# gui(p)
+			push!(ps_LtoR, p)
+			filename = "./" * name * ".png"
+			# println(filename)
+			# savefig(p, filename)
+		end
+		plot(ps_LtoR..., layout=l, plot_title="LtoR", size=(1200, 1000))
+		savefig("LtoR_inc_LtoR.png")
+	
+		for (i, slice) in enumerate(eachslice(RtoLs, dims=3))
+			name = title[i]*"_RtoL"
+			cmax = maximum(abs, slice)
+			if isapprox(cmax, 0; atol=1e-10)
+				p = heatmap(slice, title=name, c=:bwr, clims=(-1,1))
+			else
+				p = heatmap(slice, title=name, c=:bwr, clims=(-cmax, cmax))
+			end
+			# gui(p)
+			push!(ps_RtoL, p)
+			filename = "./" * name * ".png"
+			# println(filename)
+			# savefig(p, filename)
+		end
+		plot(ps_RtoL..., layout=l, plot_title="RtoL", size=(1200, 1000))
+		savefig("LtoR_inc_RtoL.png")
+	
+		for (i, slice) in enumerate(eachslice(tots, dims=3))
+			name = title[i]*"_tot"
+			if isapprox(cmaxs[i], 0; atol=1e-10)
+				p = heatmap(slice, title=name, c=:bwr, clims=(-1,1))
+			else
+				println(cmaxs[i])
+				p = heatmap(slice, title=name, c=:bwr, clims=(-cmaxs[i], cmaxs[i]))
+			end
+			push!(ps_tot, p)
+			filename = name * ".png"
+			# savefig(filename)
+		end
+		plot(ps_tot..., layout=l, plot_title="tot", size=(1200, 1000))
+		savefig("LtoR_tot.png")
+		# plot(ps..., layout=l, plot_title="trs", size=(1200, 1000), yformatter=:scientific)
+	
 		return nothing
 
 	end
