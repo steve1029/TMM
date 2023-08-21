@@ -41,6 +41,7 @@ module TMM
 	export redheffer_two_blocks
 	export redheffer_combine_all_blocks
 	export multiblock_visualization_left_to_right
+	export multiblock_visualization_right_to_left
 
     # Calculate corresponding Ez, Hx, Hy and Hz for the given Ex and Ey.
 	function _get_Amatrix(
@@ -828,15 +829,15 @@ module TMM
 		Hiy =-(kz0*Eix + kx0*Eiz) / ω / μ_0
 		Hiz = (ky0*Eix + kx0*Eiy) / ω / μ_0
 
-		Erx = dot(R[2,:], [Eiy, Eix])
-		Ery = dot(R[1,:], [Eiy, Eix])
+		Erx = la.dot(R[2,:], [Eiy, Eix])
+		Ery = la.dot(R[1,:], [Eiy, Eix])
 		Erz =-(kx0*Erx + ky0*Ery) / kz0
 		Hrx = (ky0*Erz - kz0*Ery) / ω / μ_0
 		Hry = (kz0*Erx - kx0*Erz) / ω / μ_0
 		Hrz = (ky0*Erx + kx0*Ery) / ω / μ_0
 
-		Etx = dot(T[2,:], [Eiy, Eix])
-		Ety = dot(T[1,:], [Eiy, Eix])
+		Etx = la.dot(T[2,:], [Eiy, Eix])
+		Ety = la.dot(T[1,:], [Eiy, Eix])
 		Etz =-(kx0*Etx + ky0*Ety) / kz0
 		Htx = (ky0*Etz + kz0*Ety) / ω / μ_0
 		Hty =-(kz0*Etx + kx0*Etz) / ω / μ_0
@@ -1677,12 +1678,12 @@ module TMM
 
 		for k in 1:N
 			# combine the left half infinite block.
-			Ca0n[k] = Ca1n[k] * (inv(la.I - R00_LtoR*R1n_RtoL) * T00_LtoR)
-			Cb0n[k] = Cb1n[k] + Ca1n[k] * inv(la.I - R00_LtoR*R1n_RtoL) * R00_LtoR * T1n_RtoL
+			Ca0n[k]  = Ca1n[k] * (inv(la.I - R00_LtoR*R1n_RtoL) * T00_LtoR)
+			Cb0n[k]  = Cb1n[k] + (Ca1n[k] * inv(la.I - R00_LtoR*R1n_RtoL) * R00_LtoR * T1n_RtoL)
 
 			# combine the right half infinite block.
 			Ca0n1[k] = Ca0n[k] + (Cb0n[k] * inv(la.I - Rn1n1_RtoL*R0n_LtoR) * Rn1n1_RtoL * T0n_LtoR)
-			Cb0n1[k] = Cb0n[k] * inv(la.I - Rn1n1_RtoL*R0n_LtoR) * Tn1n1_RtoL
+			Cb0n1[k] = Cb0n[k] * (inv(la.I - Rn1n1_RtoL*R0n_LtoR) * Tn1n1_RtoL)
 
 		end
 
@@ -1729,8 +1730,8 @@ module TMM
 
 		T_LtoR = S0n1[1:2, 1:2]
 		R_LtoR = S0n1[1:2, 3:4]
-		T_RtoL = S0n1[3:4, 1:2]
-		R_RtoL = S0n1[3:4, 3:4]
+		R_RtoL = S0n1[3:4, 1:2]
+		T_RtoL = S0n1[3:4, 3:4]
 
 		Eix = input[1]
 		Eiy = input[2]
@@ -1994,6 +1995,316 @@ module TMM
 		end
 		plot(ps_tot..., layout=l, plot_title="tot", size=(1200, 1000))
 		savefig("multiblock_LtoR_inc_tot.png")
+		# plot(ps..., layout=l, plot_title="trs", size=(1200, 1000), yformatter=:scientific)
+	
+		return nothing
+
+	end
+
+	function multiblock_visualization_right_to_left(
+		input::AbstractVector,
+		dx::Real,
+		dz::Real,
+		Lx::Real,
+		Lz::Real,
+		λ0::Real,
+		θ::Real,
+		ϕ::Real,
+		zs::AbstractVector,
+		murs::AbstractVector,
+		epsrs::AbstractVector
+	)
+
+		@assert length(murs) == length(epsrs)
+		@assert (length(murs) + 1) == length(zs)
+
+		c = 299792458 # m/s.
+		k0 = 2*π / λ0 # wavenumber in free space.
+		ω = c*k0
+		μ_0 = 4*π*10^-7
+		ε_0 = 8.8541878128e-12
+		impedance = sqrt(μ_0 /ε_0)
+
+		# wave vector in free space.
+		kx0 = k0 * sin(θ) * cos(ϕ)
+		ky0 = k0 * sin(θ) * sin(ϕ)
+		kz0 = k0 * cos(θ)
+		kx_bar = kx0 / k0
+		ky_bar = ky0 / k0
+
+		x = 0:dx:Lx # UnitRange object.
+		y = 0
+		z = 0:dz:Lz # UnitRange object.
+
+		S0n1, Ca0n1, Cb0n1, S1n, Ca1n, Cb1n, neigvals, neigvecs = redheffer_combine_all_blocks(ω, θ, ϕ, zs, murs, epsrs)
+
+		T_LtoR = S0n1[1:2, 1:2]
+		R_LtoR = S0n1[1:2, 3:4]
+		R_RtoL = S0n1[3:4, 1:2]
+		T_RtoL = S0n1[3:4, 3:4]
+
+		Eix = input[1]
+		Eiy = input[2]
+		Eiz = (kx0*Eix + ky0*Eiy) / kz0
+		Hix = (ky0*Eiz + kz0*Eiy) / ω / μ_0 # Not H_bar field.
+		Hiy =-(kz0*Eix + kx0*Eiz) / ω / μ_0
+		Hiz = (ky0*Eix + kx0*Eiy) / ω / μ_0
+
+		Erx = la.dot(R_LtoR[2,:], [Eiy, Eix])
+		Ery = la.dot(R_LtoR[1,:], [Eiy, Eix])
+		Erz =-(kx0*Erx + ky0*Ery) / kz0
+		Hrx = (ky0*Erz - kz0*Ery) / ω / μ_0
+		Hry = (kz0*Erx - kx0*Erz) / ω / μ_0
+		Hrz = (ky0*Erx + kx0*Ery) / ω / μ_0
+
+		Etx = la.dot(T_RtoL[2,:], [Eiy, Eix])
+		Ety = la.dot(T_RtoL[1,:], [Eiy, Eix])
+		Etz =-(kx0*Etx + ky0*Ety) / kz0
+		Htx = (ky0*Etz + kz0*Ety) / ω / μ_0
+		Hty =-(kz0*Etx + kx0*Etz) / ω / μ_0
+		Htz = (ky0*Etx + kx0*Ety) / ω / μ_0
+
+		N = length(murs)
+
+		Ex_LtoR = zeros(ComplexF64, length(x), length(z))
+		Ey_LtoR = zeros(ComplexF64, length(x), length(z))
+		Ez_LtoR = zeros(ComplexF64, length(x), length(z))
+		Hx_LtoR = zeros(ComplexF64, length(x), length(z))
+		Hy_LtoR = zeros(ComplexF64, length(x), length(z))
+		Hz_LtoR = zeros(ComplexF64, length(x), length(z))
+
+		Ex_RtoL = zeros(ComplexF64, length(x), length(z))
+		Ey_RtoL = zeros(ComplexF64, length(x), length(z))
+		Ez_RtoL = zeros(ComplexF64, length(x), length(z))
+		Hx_RtoL = zeros(ComplexF64, length(x), length(z))
+		Hy_RtoL = zeros(ComplexF64, length(x), length(z))
+		Hz_RtoL = zeros(ComplexF64, length(x), length(z))
+
+		Ex_TEp = zeros(ComplexF64, length(x), length(z))
+		Ey_TEp = zeros(ComplexF64, length(x), length(z))
+		Ez_TEp = zeros(ComplexF64, length(x), length(z))
+		Hx_TEp = zeros(ComplexF64, length(x), length(z))
+		Hy_TEp = zeros(ComplexF64, length(x), length(z))
+		Hz_TEp = zeros(ComplexF64, length(x), length(z))
+
+		Ex_TMp = zeros(ComplexF64, length(x), length(z))
+		Ey_TMp = zeros(ComplexF64, length(x), length(z))
+		Ez_TMp = zeros(ComplexF64, length(x), length(z))
+		Hx_TMp = zeros(ComplexF64, length(x), length(z))
+		Hy_TMp = zeros(ComplexF64, length(x), length(z))
+		Hz_TMp = zeros(ComplexF64, length(x), length(z))
+
+		Ex_TEm = zeros(ComplexF64, length(x), length(z))
+		Ey_TEm = zeros(ComplexF64, length(x), length(z))
+		Ez_TEm = zeros(ComplexF64, length(x), length(z))
+		Hx_TEm = zeros(ComplexF64, length(x), length(z))
+		Hy_TEm = zeros(ComplexF64, length(x), length(z))
+		Hz_TEm = zeros(ComplexF64, length(x), length(z))
+
+		Ex_TMm = zeros(ComplexF64, length(x), length(z))
+		Ey_TMm = zeros(ComplexF64, length(x), length(z))
+		Ez_TMm = zeros(ComplexF64, length(x), length(z))
+		Hx_TMm = zeros(ComplexF64, length(x), length(z))
+		Hy_TMm = zeros(ComplexF64, length(x), length(z))
+		Hz_TMm = zeros(ComplexF64, length(x), length(z))
+
+		# Define the half-infinite blocks.
+		lhi = (z .< zs[1])
+		rhi = (zs[N] .<= z)
+
+		# For the right half-infinite block,
+		phase_inc = ((kx0.*x) .+ (ky0.*y) .- (kz0.*(z' .- zs[N])))[:,rhi]
+		phase_ref = ((kx0.*x) .+ (ky0.*y) .+ (kz0.*(z' .- zs[N])))[:,rhi]
+
+		Ex_RtoL[:,rhi] = (Eix .* exp.(1im .* phase_inc))
+		Ey_RtoL[:,rhi] = (Eiy .* exp.(1im .* phase_inc))
+		Ez_RtoL[:,rhi] = (Eiz .* exp.(1im .* phase_inc))
+		Hx_RtoL[:,rhi] = (Hix .* exp.(1im .* phase_inc))
+		Hy_RtoL[:,rhi] = (Hiy .* exp.(1im .* phase_inc))
+		Hz_RtoL[:,rhi] = (Hiz .* exp.(1im .* phase_inc))
+
+		Ex_LtoR[:,rhi] = (Erx .* exp.(1im .* phase_ref))
+		Ey_LtoR[:,rhi] = (Ery .* exp.(1im .* phase_ref))
+		Ez_LtoR[:,rhi] = (Erz .* exp.(1im .* phase_ref))
+		Hx_LtoR[:,rhi] = (Hrx .* exp.(1im .* phase_ref))
+		Hy_LtoR[:,rhi] = (Hry .* exp.(1im .* phase_ref))
+		Hz_LtoR[:,rhi] = (Hrz .* exp.(1im .* phase_ref))
+
+		# For the left half-infinite block,
+		phase_trs = ((kx0.*x) .+ (ky0.*y) .- (kz0.*(z' .- zs[1])))[:,lhi]
+
+		Ex_RtoL[:,lhi] = (Etx .* exp.(1im .* phase_trs))
+		Ey_RtoL[:,lhi] = (Ety .* exp.(1im .* phase_trs))
+		Ez_RtoL[:,lhi] = (Etz .* exp.(1im .* phase_trs))
+		Hx_RtoL[:,lhi] = (Htx .* exp.(1im .* phase_trs))
+		Hy_RtoL[:,lhi] = (Hty .* exp.(1im .* phase_trs))
+		Hz_RtoL[:,lhi] = (Htz .* exp.(1im .* phase_trs))
+
+		for i in 1:N
+
+			block = (zs[i] .<= z .< zs[i+1])
+
+			n = sqrt(murs[i]*epsrs[i])
+			eigvalues = neigvals[i]
+			eigvectors = neigvecs[i]
+
+			kzTEp = eigvalues[1]
+			kzTEm = eigvalues[2]
+			kzTMp = eigvalues[3]
+			kzTMm = eigvalues[4]
+
+			kzTEp_bar = kzTEp / k0
+			kzTEm_bar = kzTEm / k0
+			kzTMp_bar = kzTMp / k0
+			kzTMm_bar = kzTMm / k0
+
+			norm_mag = sqrt(kx_bar^2 + ky_bar^2 + kzTEp_bar^2)
+
+			@printf("normalized kz of TEp in a block: %.3f\n", kzTEp_bar)
+			@printf("normalized kz of TEm in a block: %.3f\n", kzTEm_bar)
+			@printf("normalized kz of TMp in a block: %.3f\n", kzTMp_bar)
+			@printf("normalized kz of TMm in a block: %.3f\n", kzTMm_bar)
+			@printf("normalized magnitude of the wavevector in a block: %.3f\n", norm_mag)
+
+			eigTEp = eigvectors[:,1]
+			eigTEm = eigvectors[:,2]
+			eigTMp = eigvectors[:,3]
+			eigTMm = eigvectors[:,4]
+
+			Ca = Ca0n1[i]
+			Cb = Cb0n1[i]
+
+			# Ca = Ca1n[i]
+			# Cb = Cb1n[i]
+
+			cap =  Ca[1:2, :]
+			cam =  Ca[3:4, :]
+			cbp =  Cb[1:2, :]
+			cbm =  Cb[3:4, :]
+
+			cbTEp = cbp[1,:]' * [Eiy, Eix] # The coupling coefficient for left-to-right, TE mode.
+			cbTMp = cbp[2,:]' * [Eiy, Eix] # The coupling coefficient for left-to-right, TM mode.
+			cbTEm = cbm[1,:]' * [Eiy, Eix] # The coupling coefficient for right-to-left, TE mode.
+			cbTMm = cbm[2,:]' * [Eiy, Eix] # The coupling coefficient for right-to-left, TM mode.
+
+			# Define the phase.
+			phase_TEp = ((kx0.*x) .+ (ky0.*y) .+ (kzTEp.*(z' .- zs[i  ])))[:,block]
+			phase_TMp = ((kx0.*x) .+ (ky0.*y) .+ (kzTMp.*(z' .- zs[i  ])))[:,block]
+			phase_TEm = ((kx0.*x) .+ (ky0.*y) .+ (kzTEm.*(z' .- zs[i+1])))[:,block]
+			phase_TMm = ((kx0.*x) .+ (ky0.*y) .+ (kzTMm.*(z' .- zs[i+1])))[:,block]
+
+			Ex_TEp[:,block] = (cbTEp .* (eigTEp[1] .* exp.(1im .* phase_TEp)))
+			Ex_TEm[:,block] = (cbTEm .* (eigTEm[1] .* exp.(1im .* phase_TEm)))
+			Ex_TMp[:,block] = (cbTMp .* (eigTMp[1] .* exp.(1im .* phase_TMp)))
+			Ex_TMm[:,block] = (cbTMm .* (eigTMm[1] .* exp.(1im .* phase_TMm)))
+
+			Ey_TEp[:,block] = (cbTEp .* (eigTEp[2] .* exp.(1im .* phase_TEp)))
+			Ey_TEm[:,block] = (cbTEm .* (eigTEm[2] .* exp.(1im .* phase_TEm)))
+			Ey_TMp[:,block] = (cbTMp .* (eigTMp[2] .* exp.(1im .* phase_TMp)))
+			Ey_TMm[:,block] = (cbTMm .* (eigTMm[2] .* exp.(1im .* phase_TMm)))
+
+			Ez_TEp[:,block] = (cbTEp .* (eigTEp[3] .* exp.(1im .* phase_TEp)))
+			Ez_TEm[:,block] = (cbTEm .* (eigTEm[3] .* exp.(1im .* phase_TEm)))
+			Ez_TMp[:,block] = (cbTMp .* (eigTMp[3] .* exp.(1im .* phase_TMp)))
+			Ez_TMm[:,block] = (cbTMm .* (eigTMm[3] .* exp.(1im .* phase_TMm)))
+
+			Hx_TEp[:,block] = (cbTEp .* (eigTEp[4] .* exp.(1im .* phase_TEp)))
+			Hx_TEm[:,block] = (cbTEm .* (eigTEm[4] .* exp.(1im .* phase_TEm)))
+			Hx_TMp[:,block] = (cbTMp .* (eigTMp[4] .* exp.(1im .* phase_TMp)))
+			Hx_TMm[:,block] = (cbTMm .* (eigTMm[4] .* exp.(1im .* phase_TMm)))
+
+			Hy_TEp[:,block] = (cbTEp .* (eigTEp[5] .* exp.(1im .* phase_TEp)))
+			Hy_TEm[:,block] = (cbTEm .* (eigTEm[5] .* exp.(1im .* phase_TEm)))
+			Hy_TMp[:,block] = (cbTMp .* (eigTMp[5] .* exp.(1im .* phase_TMp)))
+			Hy_TMm[:,block] = (cbTMm .* (eigTMm[5] .* exp.(1im .* phase_TMm)))
+
+			Hz_TEp[:,block] = (cbTEp .* (eigTEp[6] .* exp.(1im .* phase_TEp)))
+			Hz_TEm[:,block] = (cbTEm .* (eigTEm[6] .* exp.(1im .* phase_TEm)))
+			Hz_TMp[:,block] = (cbTMp .* (eigTMp[6] .* exp.(1im .* phase_TMp)))
+			Hz_TMm[:,block] = (cbTMm .* (eigTMm[6] .* exp.(1im .* phase_TMm)))
+
+		end
+
+		Ex_LtoR += Ex_TEp + Ex_TMp
+		Ey_LtoR += Ey_TEp + Ey_TMp
+		Ez_LtoR += Ez_TEp + Ez_TMp
+		Hx_LtoR += Hx_TEp + Hx_TMp
+		Hy_LtoR += Hy_TEp + Hy_TMp
+		Hz_LtoR += Hz_TEp + Hz_TMp
+
+		Ex_RtoL += Ex_TEm + Ex_TMm
+		Ey_RtoL += Ey_TEm + Ey_TMm
+		Ez_RtoL += Ez_TEm + Ez_TMm
+		Hx_RtoL += Hx_TEm + Hx_TMm
+		Hy_RtoL += Hy_TEm + Hy_TMm
+		Hz_RtoL += Hz_TEm + Hz_TMm
+
+		Ex_tot = Ex_LtoR + Ex_RtoL
+		Ey_tot = Ey_LtoR + Ey_RtoL
+		Ez_tot = Ez_LtoR + Ez_RtoL
+		Hx_tot = Hx_LtoR + Hx_RtoL
+		Hy_tot = Hy_LtoR + Hy_RtoL
+		Hz_tot = Hz_LtoR + Hz_RtoL
+
+		LtoRs = cat(real(Ex_LtoR), real(Hx_LtoR), real(Ey_LtoR), real(Hy_LtoR), real(Ez_LtoR), real(Hz_LtoR), dims=3)
+		RtoLs = cat(real(Ex_RtoL), real(Hx_RtoL), real(Ey_RtoL), real(Hy_RtoL), real(Ez_RtoL), real(Hz_RtoL), dims=3)
+		tots  = cat(real(Ex_tot), real(Hx_tot), real(Ey_tot), real(Hy_tot), real(Ez_tot), real(Hz_tot), dims=3)
+
+		title=["Ex", "Hx", "Ey", "Hy", "Ez", "Hz"]
+		cmins = []
+		cmaxs = []
+
+		ps_LtoR = []
+		ps_RtoL = []
+		ps_tot = []
+		l = @layout([a d; b e; c f;])
+
+		for (field, slice) in enumerate(eachslice(LtoRs, dims=3))
+			name = title[field]*"_LtoR"
+			cmax = maximum(abs, slice)
+			if isapprox(cmax, 0; atol=1e-10)
+				p = heatmap(slice, title=name, c=:bwr, clims=(-1,1))
+			else
+				p = heatmap(slice, title=name, c=:bwr, clims=(-cmax, cmax))
+			end
+			# gui(p)
+			push!(ps_LtoR, p)
+			push!(cmaxs, cmax)
+			# println(filename)
+			# savefig(p, filename)
+		end
+		plot(ps_LtoR..., layout=l, plot_title="LtoR", size=(1200, 1000))
+		savefig("multiblock_RtoL_inc_LtoR.png")
+	
+		for (field, slice) in enumerate(eachslice(RtoLs, dims=3))
+			name = title[field]*"_RtoL"
+			cmax = maximum(abs, slice)
+			if isapprox(cmax, 0; atol=1e-10)
+				p = heatmap(slice, title=name, c=:bwr, clims=(-1,1))
+			else
+				p = heatmap(slice, title=name, c=:bwr, clims=(-cmax, cmax))
+			end
+			# gui(p)
+			push!(ps_RtoL, p)
+			# println(filename)
+			# savefig(p, filename)
+		end
+		plot(ps_RtoL..., layout=l, plot_title="RtoL", size=(1200, 1000))
+		savefig("multiblock_RtoL_inc_RtoL.png")
+	
+		for (field, slice) in enumerate(eachslice(tots, dims=3))
+			name = title[field]*"_tot"
+			if isapprox(cmaxs[field], 0; atol=1e-10)
+				p = heatmap(slice, title=name, c=:bwr, clims=(-1,1))
+			else
+				println(cmaxs[field])
+				p = heatmap(slice, title=name, c=:bwr, clims=(-cmaxs[field], cmaxs[field]))
+			end
+			push!(ps_tot, p)
+			# savefig(filename)
+		end
+		plot(ps_tot..., layout=l, plot_title="tot", size=(1200, 1000))
+		savefig("multiblock_RtoL_inc_tot.png")
 		# plot(ps..., layout=l, plot_title="trs", size=(1200, 1000), yformatter=:scientific)
 	
 		return nothing
