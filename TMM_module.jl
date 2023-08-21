@@ -1964,7 +1964,7 @@ module TMM
 			# savefig(p, filename)
 		end
 		plot(ps_LtoR..., layout=l, plot_title="LtoR", size=(1200, 1000))
-		savefig("LtoR_inc_LtoR.png")
+		savefig("multiblock_LtoR_inc_LtoR.png")
 	
 		for (i, slice) in enumerate(eachslice(RtoLs, dims=3))
 			name = title[i]*"_RtoL"
@@ -1981,7 +1981,7 @@ module TMM
 			# savefig(p, filename)
 		end
 		plot(ps_RtoL..., layout=l, plot_title="RtoL", size=(1200, 1000))
-		savefig("LtoR_inc_RtoL.png")
+		savefig("multiblock_LtoR_inc_RtoL.png")
 	
 		for (i, slice) in enumerate(eachslice(tots, dims=3))
 			name = title[i]*"_tot"
@@ -1996,7 +1996,7 @@ module TMM
 			# savefig(filename)
 		end
 		plot(ps_tot..., layout=l, plot_title="tot", size=(1200, 1000))
-		savefig("LtoR_tot.png")
+		savefig("multiblock_LtoR_inc_tot.png")
 		# plot(ps..., layout=l, plot_title="trs", size=(1200, 1000), yformatter=:scientific)
 	
 		return nothing
