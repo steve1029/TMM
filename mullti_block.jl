@@ -24,12 +24,12 @@ freq = c / λ0 # frequency
 ε_0 = 8.8541878128e-12
 impedance = sqrt(μ_0 /ε_0)
 # polar angle and azimuthal angle.
-# θ = π / 12 # radian.
+θ = π / 12 # radian.
 # ϕ = π / 20 # radian.
-θ = -π / 6
+# θ = -π / 6
 # θ = 0
-ϕ = 0
-# ϕ = π / 6
+# ϕ = 0
+ϕ = π / 6
 
 dx = 10*nm
 dz = 10*nm
@@ -46,7 +46,7 @@ z6 = 1500*nm
 
 zs = [z1, z2, z3, z4, z5, z6]
 murs = [1, 1, 1, 1, 1]
-epsrs = [1.3^2, 1.4^2, 1.35^2, 1.2^2, 1.25^2]
+epsrs = [1.1^2, 2.4^2, 3.35^2, 6.7^2, 4.25^2]
 input = [0., 1.] # [Eix, Eiy]
 
 # Sn, Can, Cbn = redheffer_n_blocks(ω, θ, ϕ, zs, murs, epsrs)

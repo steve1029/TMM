@@ -1045,7 +1045,6 @@ module TMM
 				p = heatmap(slice, title=name, c=:bwr, clims=(-cmax, cmax))
 			end
 			push!(ps_trs, p)
-			cmax = maximum(abs, slice)
 			push!(cmaxs, cmax)
 		end
 		plot(ps_trs..., layout=l, plot_title="trs", size=(1200, 1000))
@@ -1740,15 +1739,15 @@ module TMM
 		Hiy =-(kz0*Eix + kx0*Eiz) / ω / μ_0
 		Hiz = (ky0*Eix + kx0*Eiy) / ω / μ_0
 
-		Erx = dot(R_RtoL[2,:], [Eiy, Eix])
-		Ery = dot(R_RtoL[1,:], [Eiy, Eix])
+		Erx = la.dot(R_RtoL[2,:], [Eiy, Eix])
+		Ery = la.dot(R_RtoL[1,:], [Eiy, Eix])
 		Erz =-(kx0*Erx + ky0*Ery) / kz0
 		Hrx = (ky0*Erz - kz0*Ery) / ω / μ_0
 		Hry = (kz0*Erx - kx0*Erz) / ω / μ_0
 		Hrz = (ky0*Erx + kx0*Ery) / ω / μ_0
 
-		Etx = dot(T_LtoR[2,:], [Eiy, Eix])
-		Ety = dot(T_LtoR[1,:], [Eiy, Eix])
+		Etx = la.dot(T_LtoR[2,:], [Eiy, Eix])
+		Ety = la.dot(T_LtoR[1,:], [Eiy, Eix])
 		Etz =-(kx0*Etx + ky0*Ety) / kz0
 		Htx = (ky0*Etz + kz0*Ety) / ω / μ_0
 		Hty =-(kz0*Etx + kx0*Etz) / ω / μ_0
@@ -1803,8 +1802,8 @@ module TMM
 		rhi = (zs[N] .<= z)
 
 		# For the left half-infinite block,
-		phase_inc = ((kx0.*x) .+ (ky0.*y) .+ (kz0.*(z' .- zm)))[:,lhi]
-		phase_ref = ((kx0.*x) .+ (ky0.*y) .- (kz0.*(z' .- zm)))[:,lhi]
+		phase_inc = ((kx0.*x) .+ (ky0.*y) .+ (kz0.*(z' .- zs[1])))[:,lhi]
+		phase_ref = ((kx0.*x) .+ (ky0.*y) .- (kz0.*(z' .- zs[1])))[:,lhi]
 
 		Ex_LtoR[:,lhi] = (Eix .* exp.(1im .* phase_inc))
 		Ey_LtoR[:,lhi] = (Eiy .* exp.(1im .* phase_inc))
@@ -1821,7 +1820,7 @@ module TMM
 		Hz_RtoL[:,lhi] = (Hrz .* exp.(1im .* phase_ref))
 
 		# For the right half-infinite block,
-		phase_trs = ((kx0.*x) .+ (ky0.*y) .+ (kz0.*(z' .- zp)))[:,rhi]
+		phase_trs = ((kx0.*x) .+ (ky0.*y) .+ (kz0.*(z' .- zs[N])))[:,rhi]
 
 		Ex_LtoR[:,rhi] = (Etx .* exp.(1im .* phase_trs))
 		Ey_LtoR[:,rhi] = (Ety .* exp.(1im .* phase_trs))
@@ -1832,7 +1831,7 @@ module TMM
 
 		for i in 1:N
 
-			block = (zs[i] .<= z < zs[i+1])
+			block = (zs[i] .<= z .< zs[i+1])
 
 			n = sqrt(murs[i]*epsrs[i])
 			eigvalues = neigvals[i]
@@ -1936,8 +1935,8 @@ module TMM
 		Hy_tot = Hy_LtoR + Hy_RtoL
 		Hz_tot = Hz_LtoR + Hz_RtoL
 
-		LtoRs = cat(real(Ex_inc), real(Hx_inc), real(Ey_inc), real(Hy_inc), real(Ez_inc), real(Hz_inc), dims=3)
-		RtoLs = cat(real(Ex_ref), real(Hx_ref), real(Ey_ref), real(Hy_ref), real(Ez_ref), real(Hz_ref), dims=3)
+		LtoRs = cat(real(Ex_LtoR), real(Hx_LtoR), real(Ey_LtoR), real(Hy_LtoR), real(Ez_LtoR), real(Hz_LtoR), dims=3)
+		RtoLs = cat(real(Ex_RtoL), real(Hx_RtoL), real(Ey_RtoL), real(Hy_RtoL), real(Ez_RtoL), real(Hz_RtoL), dims=3)
 		tots  = cat(real(Ex_tot), real(Hx_tot), real(Ey_tot), real(Hy_tot), real(Ez_tot), real(Hz_tot), dims=3)
 
 		title=["Ex", "Hx", "Ey", "Hy", "Ez", "Hz"]
@@ -1949,8 +1948,8 @@ module TMM
 		ps_tot = []
 		l = @layout([a d; b e; c f;])
 
-		for (i, slice) in enumerate(eachslice(LtoRs, dims=3))
-			name = title[i]*"_LtoR"
+		for (field, slice) in enumerate(eachslice(LtoRs, dims=3))
+			name = title[field]*"_LtoR"
 			cmax = maximum(abs, slice)
 			if isapprox(cmax, 0; atol=1e-10)
 				p = heatmap(slice, title=name, c=:bwr, clims=(-1,1))
@@ -1959,15 +1958,15 @@ module TMM
 			end
 			# gui(p)
 			push!(ps_LtoR, p)
-			filename = "./" * name * ".png"
+			push!(cmaxs, cmax)
 			# println(filename)
 			# savefig(p, filename)
 		end
 		plot(ps_LtoR..., layout=l, plot_title="LtoR", size=(1200, 1000))
 		savefig("multiblock_LtoR_inc_LtoR.png")
 	
-		for (i, slice) in enumerate(eachslice(RtoLs, dims=3))
-			name = title[i]*"_RtoL"
+		for (field, slice) in enumerate(eachslice(RtoLs, dims=3))
+			name = title[field]*"_RtoL"
 			cmax = maximum(abs, slice)
 			if isapprox(cmax, 0; atol=1e-10)
 				p = heatmap(slice, title=name, c=:bwr, clims=(-1,1))
@@ -1976,23 +1975,21 @@ module TMM
 			end
 			# gui(p)
 			push!(ps_RtoL, p)
-			filename = "./" * name * ".png"
 			# println(filename)
 			# savefig(p, filename)
 		end
 		plot(ps_RtoL..., layout=l, plot_title="RtoL", size=(1200, 1000))
 		savefig("multiblock_LtoR_inc_RtoL.png")
 	
-		for (i, slice) in enumerate(eachslice(tots, dims=3))
-			name = title[i]*"_tot"
-			if isapprox(cmaxs[i], 0; atol=1e-10)
+		for (field, slice) in enumerate(eachslice(tots, dims=3))
+			name = title[field]*"_tot"
+			if isapprox(cmaxs[field], 0; atol=1e-10)
 				p = heatmap(slice, title=name, c=:bwr, clims=(-1,1))
 			else
-				println(cmaxs[i])
-				p = heatmap(slice, title=name, c=:bwr, clims=(-cmaxs[i], cmaxs[i]))
+				println(cmaxs[field])
+				p = heatmap(slice, title=name, c=:bwr, clims=(-cmaxs[field], cmaxs[field]))
 			end
 			push!(ps_tot, p)
-			filename = name * ".png"
 			# savefig(filename)
 		end
 		plot(ps_tot..., layout=l, plot_title="tot", size=(1200, 1000))
