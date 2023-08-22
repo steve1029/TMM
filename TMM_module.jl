@@ -525,15 +525,15 @@ module TMM
 		Hiy = (kz0*Eix - kx0*Eiz) / ω / μ_0
 		Hiz = (ky0*Eix - kx0*Eiy) / ω / μ_0
 
-		Erx = dot(R1[2,:], [Eiy, Eix])
-		Ery = dot(R1[1,:], [Eiy, Eix])
+		Erx = la.dot(R1[2,:], [Eiy, Eix])
+		Ery = la.dot(R1[1,:], [Eiy, Eix])
 		Erz = (kx0*Erx + ky0*Ery) / kz0
 		Hrx = (ky0*Erz + kz0*Ery) / ω / μ_0
 		Hry =-(kz0*Erx + kx0*Erz) / ω / μ_0
 		Hrz = (ky0*Erx - kx0*Ery) / ω / μ_0
 
-		Etx = dot(T1[2,:], [Eiy, Eix])
-		Ety = dot(T1[1,:], [Eiy, Eix])
+		Etx = la.dot(T1[2,:], [Eiy, Eix])
+		Ety = la.dot(T1[1,:], [Eiy, Eix])
 		Etz =-(kx0*Etx + ky0*Ety) / kz0
 		Htx = (ky0*Etz - kz0*Ety) / ω / μ_0
 		Hty = (kz0*Etx - kx0*Etz) / ω / μ_0
@@ -730,7 +730,7 @@ module TMM
 			# savefig(p, filename)
 		end
 		plot(ps_inc..., layout=l, plot_title="inc", size=(1200, 1000))
-		savefig("LtoR_inc.png")
+		savefig("singleblock_LtoR_inc.png")
 		
 		for (i, slice) in enumerate(eachslice(reffields, dims=3))
 			name = title[i]*"_ref"
@@ -745,7 +745,7 @@ module TMM
 			# savefig(filename)
 		end
 		plot(ps_ref..., layout=l, plot_title="ref", size=(1200, 1000))
-		savefig("LtoR_ref.png")
+		savefig("singleblock_LtoR_ref.png")
 
 		for (i, slice) in enumerate(eachslice(trsfields, dims=3))
 			name = title[i]*"_trs"
@@ -762,7 +762,7 @@ module TMM
 			# savefig(filename)
 		end
 		plot(ps_trs..., layout=l, plot_title="trs", size=(1200, 1000))
-		savefig("LtoR_trs.png")
+		savefig("singleblock_LtoR_trs.png")
 
 		for (i, slice) in enumerate(eachslice(totfields, dims=3))
 			name = title[i]*"_tot"
@@ -777,7 +777,7 @@ module TMM
 			# savefig(filename)
 		end
 		plot(ps_tot..., layout=l, plot_title="tot", size=(1200, 1000))
-		savefig("LtoR_tot.png")
+		savefig("singleblock_LtoR_tot.png")
 		# plot(ps..., layout=l, plot_title="trs", size=(1200, 1000), yformatter=:scientific)
 		
 		return eigvectors, coeff
@@ -1022,7 +1022,7 @@ module TMM
 			push!(ps_inc, p)
 		end
 		plot(ps_inc..., layout=l, plot_title="inc", size=(1200, 1000))
-		savefig("RtoL_inc.png")
+		savefig("singleblock_RtoL_inc.png")
 		
 		for (i, slice) in enumerate(eachslice(reffields, dims=3))
 			name = title[i]*"_ref"
@@ -1035,7 +1035,7 @@ module TMM
 			push!(ps_ref, p)
 		end
 		plot(ps_ref..., layout=l, plot_title="ref", size=(1200, 1000))
-		savefig("RtoL_ref.png")
+		savefig("singleblock_RtoL_ref.png")
 
 		for (i, slice) in enumerate(eachslice(trsfields, dims=3))
 			name = title[i]*"_trs"
@@ -1049,7 +1049,7 @@ module TMM
 			push!(cmaxs, cmax)
 		end
 		plot(ps_trs..., layout=l, plot_title="trs", size=(1200, 1000))
-		savefig("RtoL_trs.png")
+		savefig("singleblock_RtoL_trs.png")
 
 		for (i, slice) in enumerate(eachslice(totfields, dims=3))
 			name = title[i]*"_tot"
@@ -1062,7 +1062,7 @@ module TMM
 			push!(ps_tot, p)
 		end
 		plot(ps_tot..., layout=l, plot_title="tot", size=(1200, 1000))
-		savefig("RtoL_tot.png")
+		savefig("singleblock_RtoL_tot.png")
 		# plot(ps..., layout=l, plot_title="trs", size=(1200, 1000), yformatter=:scientific)
 		
 	return eigvectors, coeff
