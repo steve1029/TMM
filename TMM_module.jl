@@ -434,7 +434,7 @@ module TMM
 		cbp = cb[1:2,1:2]
 		cbm = cb[3:4,1:2]
 
-		R = inv(Wh) * (Wp0*cbp + Wm0*cbm - Wh*la.I)
+		R = inv(Wh) * (Wpp*cbp + Wm0*cbm - Wh*la.I)
 		T = inv(Wh) * (Wp0*cbp + Wmm*cbm)
 
 		return cbp, cbm, R, T
@@ -503,13 +503,13 @@ module TMM
 		kzTMm_bar = kzTMm / k0
 		norm_mag = sqrt(kx_bar^2 + ky_bar^2 + kzTEp_bar^2)
 
-		@printf("normalized kx in a single block: %.3f\n", kx_bar)
-		@printf("normalized ky in a single block: %.3f\n", ky_bar)
-		@printf("normalized kz of TEp in a single block: %.3f\n", kzTEp_bar)
-		@printf("normalized kz of TEm in a single block: %.3f\n", kzTEm_bar)
-		@printf("normalized kz of TMp in a single block: %.3f\n", kzTMp_bar)
-		@printf("normalized kz of TMm in a single block: %.3f\n", kzTMm_bar)
-		@printf("normalized magnitude of the wavevector in a single block: %.3f\n", norm_mag)
+		# @printf("normalized kx in a single block: %.3f\n", kx_bar)
+		# @printf("normalized ky in a single block: %.3f\n", ky_bar)
+		# @printf("normalized kz of TEp in a single block: %.3f\n", kzTEp_bar)
+		# @printf("normalized kz of TEm in a single block: %.3f\n", kzTEm_bar)
+		# @printf("normalized kz of TMp in a single block: %.3f\n", kzTMp_bar)
+		# @printf("normalized kz of TMm in a single block: %.3f\n", kzTMm_bar)
+		# @printf("normalized magnitude of the wavevector in a single block: %.3f\n", norm_mag)
 
 		cap, cam, R1, T1 = TMM.get_the_left_to_right_operators(ω, kx0, ky0, kz0, kzns, eigvectors, zm, zp)
 
@@ -539,6 +539,13 @@ module TMM
 		Hty = (kz0*Etx - kx0*Etz) / ω / μ_0
 		Htz = (ky0*Etx - kx0*Ety) / ω / μ_0
 
+		inputE = la.norm([Eix,Eiy,Eiz])^2
+		outputE = la.norm([Erx, Ery, Erz])^2 + la.norm([Etx, Ety, Etz])^2
+		energy_conservation = outputE - inputE
+		@printf("input energy: %g\n", inputE)
+		@printf("output energy: %g\n", outputE)
+		@printf("Difference between the input and output energy: %g\n", energy_conservation)
+
 		caTEp = cap[1,:]' * [Eiy, Eix] # The coupling coefficient for left-to-right, TE mode.
 		caTMp = cap[2,:]' * [Eiy, Eix] # The coupling coefficient for left-to-right, TM mode.
 		caTEm = cam[1,:]' * [Eiy, Eix] # The coupling coefficient for right-to-left, TE mode.
@@ -553,10 +560,6 @@ module TMM
 		leftregion = (z .< zm)
 		middleregion = (zm .<= z .< zp)
 		rightregion = (zp .<= z)
-
-		# println(x[61])
-		# println(middleregion)
-		# println(rightregion)
 
 		Ex_tot = zeros(ComplexF64, length(x), length(z))
 		Ey_tot = zeros(ComplexF64, length(x), length(z))
@@ -726,7 +729,6 @@ module TMM
 			# gui(p)
 			push!(ps_inc, p)
 			filename = "./" * name * ".png"
-			# println(filename)
 			# savefig(p, filename)
 		end
 		plot(ps_inc..., layout=l, plot_title="inc", size=(1200, 1000))
@@ -769,7 +771,6 @@ module TMM
 			if isapprox(cmaxs[i], 0; atol=1e-10)
 				p = heatmap(slice, title=name, c=:bwr, clims=(-1,1))
 			else
-				println(cmaxs[i])
 				p = heatmap(slice, title=name, c=:bwr, clims=(-cmaxs[i], cmaxs[i]))
 			end
 			push!(ps_tot, p)
@@ -842,6 +843,13 @@ module TMM
 		Htx = (ky0*Etz + kz0*Ety) / ω / μ_0
 		Hty =-(kz0*Etx + kx0*Etz) / ω / μ_0
 		Htz = (ky0*Etx + kx0*Ety) / ω / μ_0
+
+		inputE = la.norm([Eix,Eiy,Eiz])^2
+		outputE = la.norm([Erx, Ery, Erz])^2 + la.norm([Etx, Ety, Etz])^2
+		energy_conservation = outputE - inputE
+		@printf("input energy: %g\n", inputE)
+		@printf("output energy: %g\n", outputE)
+		@printf("Difference between the input and output energy: %g\n", energy_conservation)
 
 		cbTEp = cbp[1,:]' * [Eiy, Eix] # The coupling coefficient for left-to-right, TE mode.
 		cbTMp = cbp[2,:]' * [Eiy, Eix] # The coupling coefficient for left-to-right, TM mode.
@@ -1056,7 +1064,6 @@ module TMM
 			if isapprox(cmaxs[i], 0; atol=1e-10)
 				p = heatmap(slice, title=name, c=:bwr, clims=(-1,1))
 			else
-				println(cmaxs[i])
 				p = heatmap(slice, title=name, c=:bwr, clims=(-cmaxs[i], cmaxs[i]))
 			end
 			push!(ps_tot, p)
@@ -1139,22 +1146,22 @@ module TMM
 
 		# For each n blocks, get the S matrix and
 		# the Coupling coefficient matrices.
-		Ss = Matrix{ComplexF64}[]
-		Cas = Matrix{ComplexF64}[]
-		Cbs = Matrix{ComplexF64}[]
+		Ss = Vector{Matrix{ComplexF64}}(undef, N)
+		Cas = Vector{Matrix{ComplexF64}}(undef, N)
+		Cbs = Vector{Matrix{ComplexF64}}(undef, N)
 
-		eigvals_nblock = Vector{ComplexF64}[]
-		eigvecs_nblock = Matrix{ComplexF64}[]
+		eigvals_nblock = Vector{Vector{ComplexF64}}(undef, N)
+		eigvecs_nblock = Vector{Matrix{ComplexF64}}(undef, N)
 
 		for i in 1:N
 
 			S, Ca, Cb, eigvals, eigvecs = get_scc_of_a_block(ω, k0, θ, ϕ, murs[i], epsrs[i], zs[i], zs[i+1])
 
-			push!(Ss, S)
-			push!(Cas, Ca)
-			push!(Cbs, Cb)
-			push!(eigvals_nblock, eigvals)
-			push!(eigvecs_nblock, eigvecs)
+			Ss[i] = S
+			Cas[i] = Ca
+			Cbs[i] = Cb
+			eigvals_nblock[i] = eigvals
+			eigvecs_nblock[i] = eigvecs
 
 		end
 
@@ -1390,7 +1397,7 @@ module TMM
 		θ::Real, 
 		ϕ::Real,
 		zs::Vector,
-		murs::Vector, 
+		murs::Vector,
 		epsrs::Vector
 	)
 
@@ -1532,17 +1539,28 @@ module TMM
 	end
 
 	"""
-		redheffer_left_half_infinite()
-	
+    redheffer_left_half_infinite(ω, θ, ϕ, zm)
+
 	Perform redheffer star product to obtain the scattering matrix and
 	the coupling coefficient matrix operators on the left half-infinite
 	block.
 
+	In this program, we assumed the thickness of the left half-infinite
+	block has the refractive index of 1 and thickness of 0.
+
 	# Arguments
+	- 'ω::Real': angular frequency.
+
 	# Returns
+
 	# Examples
+
 	"""
-	function redheffer_left_half_infinite(ω, θ, ϕ, zm)
+	function redheffer_left_half_infinite(
+		ω::Real, 
+		θ::Real, 
+		ϕ::Real, 
+		zm::Real)
 
 		mur_lhi = 1
 		epsr_lhi = 1
@@ -1583,6 +1601,20 @@ module TMM
 
 	end
 
+	"""
+		redheffer_right_half_infinite()
+	
+	Perform redheffer star product to obtain the scattering matrix and
+	the coupling coefficient matrix operators on the right half-infinite
+	block.
+
+	In this program, we assumed the thickness of the right half-infinite
+	block has the refractive index of 1 and thickness of 0.
+
+	# Arguments
+	# Returns
+	# Examples
+	"""
 	function redheffer_right_half_infinite(ω, θ, ϕ, zp)
 		
 		n_rhi = 1 # Note that we assumed the surrounding medium is vaccuum of air.
@@ -1625,29 +1657,21 @@ module TMM
 
 	function redheffer_combine_all_blocks(ω, θ, ϕ, zs, murs, epsrs)
 
-		zm = zs[1]
-		zp = zs[end]
+		# zm = zs[1]
+		# zp = zs[end]
 
-		Slhi = redheffer_left_half_infinite(ω, θ, ϕ, zm)
-		Srhi = redheffer_right_half_infinite(ω, θ, ϕ, zp)
+		Slhi = redheffer_left_half_infinite(ω, θ, ϕ, 0)
+		Srhi = redheffer_right_half_infinite(ω, θ, ϕ, 0)
 
 		T00_LtoR = Slhi[1:2, 1:2]
 		R00_LtoR = Slhi[1:2, 3:4]
 		R00_RtoL = Slhi[3:4, 1:2]
 		T00_RtoL = Slhi[3:4, 3:4]
 
-		# println(T00_LtoR)
-		# println(conj(T00_LtoR))
-		# println(T00_LtoR * conj(T00_LtoR))
-
 		Tn1n1_LtoR = Srhi[1:2, 1:2]
 		Rn1n1_LtoR = Srhi[1:2, 3:4]
 		Rn1n1_RtoL = Srhi[3:4, 1:2]
 		Tn1n1_RtoL = Srhi[3:4, 3:4]
-
-		# println(Tn1n1_LtoR)
-		# println(conj(Tn1n1_LtoR))
-		# println(Tn1n1_LtoR * conj(Tn1n1_LtoR))
 
 		S1n, Ca1n, Cb1n, eigvalsn, eigvecsn = redheffer_n_blocks(ω, θ, ϕ, zs, murs, epsrs)
 
@@ -1663,11 +1687,6 @@ module TMM
 		R0n_LtoR = S0n[1:2, 3:4]
 		R0n_RtoL = S0n[3:4, 1:2]
 		T0n_RtoL = S0n[3:4, 3:4]
-
-		T0n1_LtoR = S0n1[1:2, 1:2]
-		R0n1_LtoR = S0n1[1:2, 3:4]
-		R0n1_RtoL = S0n1[3:4, 1:2]
-		T0n1_RtoL = S0n1[3:4, 3:4]
 
 		# Combine the left half infinite block.
 		N = length(Ca1n)
@@ -1753,6 +1772,13 @@ module TMM
 		Htx = (ky0*Etz + kz0*Ety) / ω / μ_0
 		Hty =-(kz0*Etx + kx0*Etz) / ω / μ_0
 		Htz = (ky0*Etx + kx0*Ety) / ω / μ_0
+
+		inputE = la.norm([Eix,Eiy,Eiz])^2
+		outputE = la.norm([Erx, Ery, Erz])^2 + la.norm([Etx, Ety, Etz])^2
+		energy_conservation = outputE - inputE
+		@printf("input energy: %g\n", inputE)
+		@printf("output energy: %g\n", outputE)
+		@printf("Difference between the input and output energy: %g\n", energy_conservation)
 
 		N = length(murs)
 
@@ -1850,11 +1876,11 @@ module TMM
 
 			norm_mag = sqrt(kx_bar^2 + ky_bar^2 + kzTEp_bar^2)
 
-			@printf("normalized kz of TEp in a block: %.3f\n", kzTEp_bar)
-			@printf("normalized kz of TEm in a block: %.3f\n", kzTEm_bar)
-			@printf("normalized kz of TMp in a block: %.3f\n", kzTMp_bar)
-			@printf("normalized kz of TMm in a block: %.3f\n", kzTMm_bar)
-			@printf("normalized magnitude of the wavevector in a block: %.3f\n", norm_mag)
+			# @printf("normalized kz of TEp in a block: %.3f\n", kzTEp_bar)
+			# @printf("normalized kz of TEm in a block: %.3f\n", kzTEm_bar)
+			# @printf("normalized kz of TMp in a block: %.3f\n", kzTMp_bar)
+			# @printf("normalized kz of TMm in a block: %.3f\n", kzTMm_bar)
+			# @printf("normalized magnitude of the wavevector in a block: %.3f\n", norm_mag)
 
 			eigTEp = eigvectors[:,1]
 			eigTEm = eigvectors[:,2]
@@ -1960,7 +1986,6 @@ module TMM
 			# gui(p)
 			push!(ps_LtoR, p)
 			push!(cmaxs, cmax)
-			# println(filename)
 			# savefig(p, filename)
 		end
 		plot(ps_LtoR..., layout=l, plot_title="LtoR", size=(1200, 1000))
@@ -1976,7 +2001,6 @@ module TMM
 			end
 			# gui(p)
 			push!(ps_RtoL, p)
-			# println(filename)
 			# savefig(p, filename)
 		end
 		plot(ps_RtoL..., layout=l, plot_title="RtoL", size=(1200, 1000))
@@ -1987,7 +2011,6 @@ module TMM
 			if isapprox(cmaxs[field], 0; atol=1e-10)
 				p = heatmap(slice, title=name, c=:bwr, clims=(-1,1))
 			else
-				println(cmaxs[field])
 				p = heatmap(slice, title=name, c=:bwr, clims=(-cmaxs[field], cmaxs[field]))
 			end
 			push!(ps_tot, p)
@@ -2063,6 +2086,13 @@ module TMM
 		Htx = (ky0*Etz + kz0*Ety) / ω / μ_0
 		Hty =-(kz0*Etx + kx0*Etz) / ω / μ_0
 		Htz = (ky0*Etx + kx0*Ety) / ω / μ_0
+
+		inputE = la.norm([Eix,Eiy,Eiz])^2
+		outputE = la.norm([Erx, Ery, Erz])^2 + la.norm([Etx, Ety, Etz])^2
+		energy_conservation = outputE - inputE
+		@printf("input energy: %g\n", inputE)
+		@printf("output energy: %g\n", outputE)
+		@printf("Difference between the input and output energy: %g\n", energy_conservation)
 
 		N = length(murs)
 
@@ -2160,11 +2190,11 @@ module TMM
 
 			norm_mag = sqrt(kx_bar^2 + ky_bar^2 + kzTEp_bar^2)
 
-			@printf("normalized kz of TEp in a block: %.3f\n", kzTEp_bar)
-			@printf("normalized kz of TEm in a block: %.3f\n", kzTEm_bar)
-			@printf("normalized kz of TMp in a block: %.3f\n", kzTMp_bar)
-			@printf("normalized kz of TMm in a block: %.3f\n", kzTMm_bar)
-			@printf("normalized magnitude of the wavevector in a block: %.3f\n", norm_mag)
+			# @printf("normalized kz of TEp in a block: %.3f\n", kzTEp_bar)
+			# @printf("normalized kz of TEm in a block: %.3f\n", kzTEm_bar)
+			# @printf("normalized kz of TMp in a block: %.3f\n", kzTMp_bar)
+			# @printf("normalized kz of TMm in a block: %.3f\n", kzTMm_bar)
+			# @printf("normalized magnitude of the wavevector in a block: %.3f\n", norm_mag)
 
 			eigTEp = eigvectors[:,1]
 			eigTEm = eigvectors[:,2]
@@ -2270,7 +2300,6 @@ module TMM
 			# gui(p)
 			push!(ps_LtoR, p)
 			push!(cmaxs, cmax)
-			# println(filename)
 			# savefig(p, filename)
 		end
 		plot(ps_LtoR..., layout=l, plot_title="LtoR", size=(1200, 1000))
@@ -2286,7 +2315,6 @@ module TMM
 			end
 			# gui(p)
 			push!(ps_RtoL, p)
-			# println(filename)
 			# savefig(p, filename)
 		end
 		plot(ps_RtoL..., layout=l, plot_title="RtoL", size=(1200, 1000))
@@ -2297,7 +2325,6 @@ module TMM
 			if isapprox(cmaxs[field], 0; atol=1e-10)
 				p = heatmap(slice, title=name, c=:bwr, clims=(-1,1))
 			else
-				println(cmaxs[field])
 				p = heatmap(slice, title=name, c=:bwr, clims=(-cmaxs[field], cmaxs[field]))
 			end
 			push!(ps_tot, p)
@@ -2311,6 +2338,4 @@ module TMM
 
 	end
 
-	function check_energy_conservation(kz0, kzn1)
-	end
 end # end of a module.
