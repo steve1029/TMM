@@ -1,12 +1,10 @@
 # TMM
-<<<<<<< HEAD
-A short python script for the Transfer Matrix Method. I made it during my early days in graduate school.
 
 ## Installation
-Just download whole package and run `$ python example.py`
+Just download the whole package and run `$ python example.py`
 
 ## How to use
-1. First, make an TMM object.
+1. First, make a TMM object.
     ```Python
     import TMM
     example = TMM.TMM()
@@ -28,10 +26,10 @@ Just download whole package and run `$ python example.py`
     ```
 
 1. Set the material properties of the medium.
-    If the medium is consist of 4 layers, put six arguments.
-    The first and last arguments are the medium indice for the input(incident) field and output(transmitted) field.
-    If the 4 layers are placed in vacuum or air, the first and last argument should be 1.
-    The thickness of the mediums can be set by `set_mediumthick` method.
+    If the medium consists of 4 layers, put six arguments.
+    The first and last arguments are the medium indices for the input(incident) field and output(transmitted) field.
+    If the 4 layers are placed in a vacuum or air, the first and last argument should be 1.
+    The thickness of the mediums can be set by the `set_mediumthick` method.
     It also takes 4 arguments because the thickness of the input and output medium is not considered in TMM.
 
     ```python
