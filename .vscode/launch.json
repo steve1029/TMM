@@ -4,6 +4,7 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+<<<<<<< HEAD
         {
             "name": "Python: Current File",
             "type": "python",
@@ -11,6 +12,17 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": true
+=======
+        
+        {
+            "type": "julia",
+            "request": "launch",
+            "name": "Run active Julia file",
+            "program": "${file}",
+            "stopOnEntry": false,
+            "cwd": "${workspaceFolder}",
+            "juliaEnv": "${command:activeJuliaEnvironment}"
+>>>>>>> 4db6fff51b810e86051e926959b96276ac03b406
         }
     ]
 }

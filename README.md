@@ -1,4 +1,5 @@
 # TMM
+<<<<<<< HEAD
 A short python script for the Transfer Matrix Method. I made it during my early days in graduate school.
 
 ## Installation
@@ -38,3 +39,16 @@ Just download whole package and run `$ python example.py`
     example.set_mediumtype('nonmagnetic')
     example.set_mediumthick(800*nm, 502.4*nm, 753.6*nm, 402.4*nm)
     ```
+=======
+A Julia code for TMM, an acronym for the Transfer Matrix Method.
+<p align="center">
+  <img src="/singleblock_LtoR_tot.png" />
+  <em>Field visualization of TE wave, incidence from left-to-right on a single dielectric slab.</em>
+</p>
+
+# Features
+
+# Installation
+
+# Examples
+>>>>>>> 4db6fff51b810e86051e926959b96276ac03b406
