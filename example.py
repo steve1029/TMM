@@ -18,10 +18,10 @@ example.set_incidentangle(angle=np.pi/6, unit='radian')
 print('modified incident angle : ', example.incangle)
 # print '%.2e' %example.wavelength
 
-example.set_mediumindex(1, 1.2, 1.1, 2.2, 1.4, 1)
+example.set_mediumindex(1, 2.2, 1)
 #example.set_mediumtype('magnetic',[1,2,3,2,1])
 example.set_mediumtype('nonmagnetic')
-example.set_mediumthick(800*nm, 502.4*nm, 753.6*nm, 402.4*nm)
+example.set_mediumthick(500*nm)
 
 size = (10,8)
 
